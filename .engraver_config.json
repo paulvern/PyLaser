@@ -1,0 +1,10 @@
+{
+  "language": "Italiano",
+  "theme": "Dark",
+  "work_area_w": 400.0,
+  "work_area_h": 400.0,
+  "last_port": "COM4",
+  "last_baud": 115200,
+  "feed_rate": 6000,
+  "power": 255
+}
