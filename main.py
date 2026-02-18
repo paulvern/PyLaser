@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Laser Engraver Pro v3.1 - main.py
+PyLaser  v0.9 - main.py
 Applicazione principale con supporto multilingua, temi e help integrato.
 
 Requires:
@@ -79,7 +79,7 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════════════════════
 #  COSTANTI
 # ══════════════════════════════════════════════════════════════════════════════
-APP_VERSION = "3.1.0"
+APP_VERSION = "0.9"
 BAUDRATES   = [9600, 19200, 38400, 57600, 115200, 250000]
 CONFIG_FILE = Path(__file__).parent / ".engraver_config.json"
 
@@ -375,7 +375,7 @@ class GCodeGenerator:
     def build(self, path_lines, offset_x=0.0, offset_y=0.0) -> GCodeProgram:
         resolved = [l.replace("{lp}", str(self.power)) for l in path_lines]
         raw = [
-            f"; Laser Engraver Pro v{APP_VERSION}",
+            f"; PyLaser v{APP_VERSION}",
             f"; Feed:{self.feed}  Power:{self.power}  Passes:{self.passes}",
             f"; OffsetX:{offset_x:.3f}  OffsetY:{offset_y:.3f}",
             "G21", "G90", "G92 X0 Y0", f"F{self.feed}", "M5", "",
@@ -935,7 +935,7 @@ class HelpWindow(tk.Toplevel):
         footer = tk.Frame(self, bg=t.mantle)
         footer.pack(fill="x")
         tk.Label(footer,
-                  text=f"Laser Engraver Pro v{APP_VERSION}",
+                  text=f"Py Laser{APP_VERSION}",
                   bg=t.mantle, fg=t.subtext,
                   font=("Segoe UI", 8)).pack(side="left", padx=8, pady=6)
         tk.Button(footer, text="✕ Close", bg=t.surface0, fg=t.text,
@@ -1611,7 +1611,7 @@ class App(tk.Tk):
         t = self.t
         messagebox.showinfo(
             "About",
-            f"Laser Engraver Pro v{APP_VERSION}\n\n"
+            f"Py Laser v{APP_VERSION}\n\n"
             f"A complete laser engraving application\n"
             f"with vectorization, simulation and GCode control.\n\n"
             f"Theme: {self._theme_name}\n"

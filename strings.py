@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 strings.py
-Sistema di localizzazione per Laser Engraver Pro v3.0
+Sistema di localizzazione per Py Laser
 Lingue disponibili: Italiano, English, Español, Deutsch
 Per aggiungere una nuova lingua: copia un blocco esistente,
 cambia il codice lingua e traduci tutti i valori.
@@ -279,7 +279,7 @@ class Strings:
 # ══════════════════════════════════════════════════════════════════════════════
 IT = Strings(
     # Generale
-    app_title              = "Laser Engraver Pro",
+    app_title              = "Py Laser",
     app_version_prefix     = "v",
     ready                  = "Pronto",
     error                  = "Errore",
@@ -543,7 +543,7 @@ IT = Strings(
 # ══════════════════════════════════════════════════════════════════════════════
 EN = Strings(
     # General
-    app_title              = "Laser Engraver Pro",
+    app_title              = "Py Laser",
     app_version_prefix     = "v",
     ready                  = "Ready",
     error                  = "Error",
@@ -807,7 +807,7 @@ EN = Strings(
 # ══════════════════════════════════════════════════════════════════════════════
 ES = Strings(
     # General
-    app_title              = "Laser Engraver Pro",
+    app_title              = "Py Laser",
     app_version_prefix     = "v",
     ready                  = "Listo",
     error                  = "Error",
@@ -1071,7 +1071,7 @@ ES = Strings(
 # ══════════════════════════════════════════════════════════════════════════════
 DE = Strings(
     # Allgemein
-    app_title              = "Laser Engraver Pro",
+    app_title              = "Py Laser",
     app_version_prefix     = "v",
     ready                  = "Bereit",
     error                  = "Fehler",
