@@ -1,6 +1,8 @@
 # PyLaser v0.93
-Here it is a simpler HTML version:
+
+For a simple yet complete HTML version:
 https://paulvern.free.nf/laser/
+
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
