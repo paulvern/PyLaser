@@ -1486,34 +1486,54 @@ class LaserCAM {
         return len;
     }
 
-    // ========== G-CODE - CORRETTO! ==========
+    // ========== G-CODE - VERSIONE COMPATIBILE LONGER LASER ==========
     generateVectorGCode() {
         let gcode = ['; LaserCAM v1.0 - Vector', 'G21', 'G90', 'M5', ''], dist = 0;
+        
         this.objects.forEach(obj => {
             if (obj.type !== 'vector' || !obj.paths.length) return;
             const sVal = Math.round(obj.power / 100 * 1000);
             gcode.push(`; ${obj.name}`);
+            
             for (let pass = 0; pass < obj.passes; pass++) {
                 obj.paths.forEach(path => {
                     if (path.length < 2) return;
-                    let lx = obj.x + path[0].x * obj.w, ly = obj.y + path[0].y * obj.h;
+                    
+                    // Punto iniziale
+                    let lx = obj.x + path[0].x * obj.w;
+                    let ly = obj.y + path[0].y * obj.h;
+                    
+                    // Movimento rapido al punto di partenza (laser OFF)
                     gcode.push(`G0 X${lx.toFixed(3)} Y${ly.toFixed(3)}`);
-                    // CORREZIONE: Laser si accende nel PRIMO G1, non prima!
+                    
+                    // MODALITÀ LONGER: M3 attiva laser, poi G1 con S
+                    gcode.push('M3');
+                    gcode.push(`F${obj.speed}`);
+                    
+                    // Percorso di taglio
                     for (let i = 1; i < path.length; i++) {
-                        const px = obj.x + path[i].x * obj.w, py = obj.y + path[i].y * obj.h;
+                        const px = obj.x + path[i].x * obj.w;
+                        const py = obj.y + path[i].y * obj.h;
+                        
                         if (i === 1) {
-                            // Primo movimento: accende laser inline
-                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} S${sVal} F${obj.speed}`);
+                            // Primo punto: imposta potenza
+                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} S${sVal}`);
                         } else {
-                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} F${obj.speed}`);
+                            // Altri punti: continua con stessa potenza
+                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)}`);
                         }
-                        dist += Math.sqrt((px-lx)**2 + (py-ly)**2);
-                        lx = px; ly = py;
+                        
+                        dist += Math.sqrt((px - lx) ** 2 + (py - ly) ** 2);
+                        lx = px;
+                        ly = py;
                     }
+                    
+                    // Spegni laser
                     gcode.push('M5');
                 });
             }
         });
+        
         gcode.push('', 'M5', `G0 X${this.homePosition.x} Y${this.homePosition.y}`, 'M2');
         return { code: gcode.join('\n'), lines: gcode.length, dist };
     }
@@ -1559,10 +1579,14 @@ class LaserCAM {
                 segments.forEach(seg => {
                     const x1 = obj.x + Math.min(seg.s, seg.e) * lineSpacing;
                     const x2 = obj.x + Math.max(seg.s, seg.e) * lineSpacing;
+                    
+                    // MODALITÀ LONGER LASER
                     gcode.push(`G0 X${x1.toFixed(3)} Y${y.toFixed(3)}`);
-                    // CORREZIONE: Laser si accende nel G1, non con M3 separato!
-                    gcode.push(`G1 X${x2.toFixed(3)} S${sVal} F${obj.speed}`);
+                    gcode.push('M3');
+                    gcode.push(`F${obj.speed}`);
+                    gcode.push(`G1 X${x2.toFixed(3)} S${sVal}`);
                     gcode.push('M5');
+                    
                     dist += Math.abs(x2 - x1);
                 });
             }
@@ -1596,7 +1620,7 @@ class LaserCAM {
         document.getElementById('btnSendGcode').onclick = () => { closeModal('modalGcode'); this.startJobWithCode(result.code); };
     }
 
-    // ========== SIMULATION ==========
+    // ========== (resto del codice identico, continua dalla sezione SIMULATION) ==========
     startSimulation() {
         const simPoints = [];
         let hasVector = false, hasRaster = false;
@@ -1987,7 +2011,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initLanguageSelector();
     app = new LaserCAM();
     applyTranslations();
-    console.log('✅ LaserCAM Pro v1.0 - G-Code Fixed');
+    console.log('✅ LaserCAM Pro v1.0 - Longer Laser Compatible');
 });
 </script>
 </body>
