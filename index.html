@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LaserCAM Pro 1.0 - Relative Mode</title>
+<title>LaserCAM Pro 1.0 - Relative Mode + Live Preview</title>
 <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
 <style>
 :root {
@@ -57,6 +58,10 @@ canvas { position: absolute; top: 0; left: 0; }
 .edit-mode-bar { position: absolute; top: 55px; left: 40px; background: var(--warn); color: #000; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; display: none; z-index: 20; }
 .edit-mode-bar.show { display: flex; align-items: center; gap: 8px; }
 
+/* ⭐ NUOVO - Job running indicator */
+.job-running-bar { position: absolute; top: 55px; right: 10px; background: var(--success); color: #000; padding: 8px 14px; border-radius: 6px; font-size: 11px; font-weight: bold; display: none; z-index: 20; box-shadow: 0 0 15px var(--success); animation: pulse 2s infinite; }
+.job-running-bar.show { display: flex; align-items: center; gap: 8px; }
+
 .context-menu { position: fixed; background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 0; min-width: 180px; z-index: 2000; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: none; }
 .context-menu.show { display: block; }
 .context-menu-item { padding: 7px 12px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 6px; transition: 0.15s; }
@@ -83,6 +88,7 @@ canvas { position: absolute; top: 0; left: 0; }
 .obj-item { padding: 6px 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
 .obj-item:hover { background: var(--input); }
 .obj-item.sel { background: rgba(0, 212, 255, 0.15); border-left: 3px solid var(--accent); }
+.obj-item.processing { background: rgba(46, 213, 115, 0.15); border-left: 3px solid var(--success); }
 .obj-del { background: var(--danger); border: none; color: #fff; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 9px; }
 
 footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items: center; padding: 0 15px; gap: 15px; font-size: 11px; border-top: 1px solid var(--border); }
@@ -138,7 +144,6 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
 }
 .home-pos-display strong { color: var(--success); }
 
-/* ⭐ Badge modalità relativa */
 .relative-mode-badge {
     background: var(--warn);
     color: #000;
@@ -148,6 +153,17 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
     font-weight: bold;
     margin-left: 8px;
 }
+
+/* ⭐ NUOVO - Print area badge */
+.print-area-badge {
+    background: var(--success);
+    color: #000;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: bold;
+    margin-left: 4px;
+}
 </style>
 </head>
 <body>
@@ -155,7 +171,8 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
     <header>
         <div class="logo">
             ⚡ LaserCAM Pro v1.0
-            <span class="relative-mode-badge">RELATIVE MODE</span>
+            <span class="relative-mode-badge">RELATIVE</span>
+            <span class="print-area-badge" id="printAreaBadge">200×200</span>
         </div>
         <div class="hdr-ctrl">
             <div class="lang-selector" id="langSelector"></div>
@@ -181,6 +198,17 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
             <div class="row">
                 <div class="form-g"><label data-i18n="lbl_x_max"></label><input type="number" id="machX" value="300"></div>
                 <div class="form-g"><label data-i18n="lbl_y_max"></label><input type="number" id="machY" value="300"></div>
+            </div>
+            <!-- ⭐ NUOVO - Print Area Size -->
+            <div class="row">
+                <div class="form-g">
+                    <label>🎯 Print Area X</label>
+                    <input type="number" id="printAreaX" value="200" min="10" max="500">
+                </div>
+                <div class="form-g">
+                    <label>🎯 Print Area Y</label>
+                    <input type="number" id="printAreaY" value="200" min="10" max="500">
+                </div>
             </div>
             <div class="form-g">
                 <label><input type="checkbox" id="mirrorX"> <span data-i18n="lbl_mirror_x"></span></label>
@@ -277,6 +305,12 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
         <div class="edit-mode-bar" id="editModeBar">
             <span data-i18n="edit_mode_label"></span>
             <button class="btn btn-sm" id="btnExitEdit" data-i18n="btn_exit"></button>
+        </div>
+
+        <!-- ⭐ NUOVO - Job Running Indicator -->
+        <div class="job-running-bar" id="jobRunningBar">
+            <span>🔥 ENGRAVING...</span>
+            <span id="jobProgressText">0%</span>
         </div>
         
         <div class="sim-overlay" id="simOverlay">
@@ -422,7 +456,7 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
     <div id="loadingText"></div>
 </div>
 
-<!-- MODALS -->
+<!-- MODALS (same as before) -->
 <div class="modal" id="modalPreset">
     <div class="modal-content">
         <div class="modal-header">
@@ -550,14 +584,14 @@ function initLanguageSelector() {
 }
 
 // ============================================
-// LaserObject Class - COORDINATE RELATIVE AL CENTRO
+// LaserObject Class - CON TRACKING PROGRESS
 // ============================================
 class LaserObject {
     constructor(type, data = {}) {
         this.id = 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         this.type = type;
         this.name = data.name || type + '_' + this.id.substr(-4);
-        this.x = data.x || 0;  // ⭐ Può essere negativo (centro = 0,0)
+        this.x = data.x || 0;
         this.y = data.y || 0;
         this.w = data.w || 50;
         this.h = data.h || 50;
@@ -571,6 +605,10 @@ class LaserObject {
         this.paths = data.paths || [];
         this.selected = false;
         this.selectedPathIndex = -1;
+        
+        // ⭐ NUOVO - Progress tracking
+        this.jobProgress = 0; // 0-100
+        this.isProcessing = false; // True durante l'incisione
     }
 
     contains(mx, my) {
@@ -596,7 +634,6 @@ class LaserObject {
     }
 
     getHandles(scale, pan, ppm) {
-        // ⭐ pan è il centro (0,0)
         const px = pan.x + this.x * ppm * scale;
         const py = pan.y + this.y * ppm * scale;
         const pw = this.w * ppm * scale;
@@ -666,9 +703,8 @@ class LaserObject {
         });
     }
 }
-
 // ============================================
-// LaserCAM Class - FULL RELATIVE MODE
+// LaserCAM Class - CON PRINT AREA E LIVE PREVIEW
 // ============================================
 class LaserCAM {
     constructor() {
@@ -678,9 +714,12 @@ class LaserCAM {
         this.selected = null;
         
         this.zoom = 1;
-        this.pan = { x: 0, y: 0 };  // ⭐ Calcolato in resize()
+        this.pan = { x: 0, y: 0 };
         this.ppm = 2;
         this.workArea = { w: 300, h: 300 };
+        
+        // ⭐ NUOVO - Print Area
+        this.printArea = { w: 200, h: 200 }; // Area di stampa sicura attorno all'home
         
         this.resizing = false;
         this.resizeHandle = null;
@@ -696,13 +735,18 @@ class LaserCAM {
         this.jobPaused = false;
         this.jobQueue = [];
         
+        // ⭐ NUOVO - Job tracking
+        this.currentJobLine = 0;
+        this.totalJobLines = 0;
+        this.currentProcessingObject = null;
+        
         this.machine = this.loadMachine();
         this.presets = this.loadPresets();
         this.jogStep = 10;
         
-        this.homePosition = { x: 0, y: 0 };  // ⭐ Home è sempre 0,0
+        this.homePosition = { x: 0, y: 0 };
         this.currentPosition = { x: 0, y: 0 };
-        this.positionKnown = false;  // ⭐ NUOVO
+        this.positionKnown = false;
         this.positionUpdateInterval = null;
         
         this.simulating = false;
@@ -734,15 +778,14 @@ class LaserCAM {
         this.render();
         this.applyMachineProfile();
         this.updateCurrentPosDisplay();
+        this.updatePrintAreaBadge();
     }
 
-    // ⭐ RESIZE - Centra area di lavoro
     resize() {
         const parent = document.getElementById('canvasParent');
         this.canvas.width = parent.clientWidth;
         this.canvas.height = parent.clientHeight;
         
-        // Centra l'area con 0,0 al centro
         this.pan = {
             x: (this.canvas.width + RULER_SIZE) / 2,
             y: (this.canvas.height + RULER_SIZE) / 2
@@ -757,7 +800,12 @@ class LaserCAM {
         document.getElementById('currentPosText').textContent = `X${x} Y${y}`;
     }
 
-    // ========== RENDER - SISTEMA CENTRATO ==========
+    // ⭐ NUOVO - Aggiorna badge print area
+    updatePrintAreaBadge() {
+        document.getElementById('printAreaBadge').textContent = `${this.printArea.w}×${this.printArea.h}`;
+    }
+
+    // ========== RENDER CON PRINT AREA E LIVE PREVIEW ==========
     render() {
         const ctx = this.ctx;
         const W = this.canvas.width, H = this.canvas.height;
@@ -769,7 +817,6 @@ class LaserCAM {
         const halfW = this.workArea.w / 2;
         const halfH = this.workArea.h / 2;
         
-        // Area di lavoro centrata (0,0 = centro)
         const areaLeft = this.pan.x - halfW * scale;
         const areaTop = this.pan.y - halfH * scale;
         const areaW = this.workArea.w * scale;
@@ -801,7 +848,7 @@ class LaserCAM {
             ctx.stroke();
         }
         
-        // ⭐ Assi centrali (X e Y attraverso 0,0)
+        // Assi centrali
         ctx.strokeStyle = '#3a5a3a';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -811,7 +858,10 @@ class LaserCAM {
         ctx.lineTo(areaLeft + areaW, this.pan.y);
         ctx.stroke();
         
-        // Bordo area
+        // ⭐ NUOVO - Print Area Rectangle
+        this.drawPrintArea(ctx, scale);
+        
+        // Bordo area totale
         ctx.strokeStyle = '#3a4a6a';
         ctx.lineWidth = 2;
         ctx.strokeRect(areaLeft, areaTop, areaW, areaH);
@@ -819,6 +869,7 @@ class LaserCAM {
         this.drawHomeMarker(ctx, scale);
         this.drawCurrentPosMarker(ctx, scale);
         
+        // ⭐ Disegna oggetti con progress
         this.objects.forEach(obj => this.drawObject(obj));
         
         if (this.simulating && this.simData?.currentPoint) {
@@ -830,7 +881,66 @@ class LaserCAM {
             `| ${t('editing')}: ${this.editingObject.paths.length} paths` : '';
     }
 
-    // ⭐ RULERS - Con coordinate negative/positive
+    // ⭐ NUOVO - Disegna Print Area
+    drawPrintArea(ctx, scale) {
+        const halfPrintW = this.printArea.w / 2;
+        const halfPrintH = this.printArea.h / 2;
+        
+        const printLeft = this.pan.x - halfPrintW * scale;
+        const printTop = this.pan.y - halfPrintH * scale;
+        const printW = this.printArea.w * scale;
+        const printH = this.printArea.h * scale;
+        
+        ctx.save();
+        
+        // Bordo print area
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+        ctx.strokeRect(printLeft, printTop, printW, printH);
+        ctx.setLineDash([]);
+        
+        // Label
+        ctx.fillStyle = '#00ff88';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText(`Print Area: ${this.printArea.w}×${this.printArea.h}mm`, printLeft + 5, printTop - 5);
+        
+        // Corner markers
+        const markerSize = 10;
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        
+        // Top-left
+        ctx.beginPath();
+        ctx.moveTo(printLeft, printTop + markerSize);
+        ctx.lineTo(printLeft, printTop);
+        ctx.lineTo(printLeft + markerSize, printTop);
+        ctx.stroke();
+        
+        // Top-right
+        ctx.beginPath();
+        ctx.moveTo(printLeft + printW - markerSize, printTop);
+        ctx.lineTo(printLeft + printW, printTop);
+        ctx.lineTo(printLeft + printW, printTop + markerSize);
+        ctx.stroke();
+        
+        // Bottom-left
+        ctx.beginPath();
+        ctx.moveTo(printLeft, printTop + printH - markerSize);
+        ctx.lineTo(printLeft, printTop + printH);
+        ctx.lineTo(printLeft + markerSize, printTop + printH);
+        ctx.stroke();
+        
+        // Bottom-right
+        ctx.beginPath();
+        ctx.moveTo(printLeft + printW - markerSize, printTop + printH);
+        ctx.lineTo(printLeft + printW, printTop + printH);
+        ctx.lineTo(printLeft + printW, printTop + printH - markerSize);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+
     drawRulers(ctx, scale, halfW, halfH) {
         const W = this.canvas.width, H = this.canvas.height;
         
@@ -845,7 +955,7 @@ class LaserCAM {
         ctx.font = '9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('0', RULER_SIZE/2, RULER_SIZE/2);
+        ctx.fillText('mm', RULER_SIZE/2, RULER_SIZE/2);
         
         let majorTick = 50, minorTick = 10;
         if (this.zoom > 1.5) { majorTick = 20; minorTick = 5; }
@@ -856,7 +966,6 @@ class LaserCAM {
         ctx.fillStyle = '#8a9aaa';
         ctx.font = '8px sans-serif';
         
-        // ⭐ Righello X con negativi e positivi
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         for (let mm = -halfW; mm <= halfW; mm += minorTick) {
@@ -870,7 +979,6 @@ class LaserCAM {
             if (isMajor) ctx.fillText(mm.toString(), px, RULER_SIZE - 18);
         }
         
-        // ⭐ Righello Y con negativi e positivi
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         for (let mm = -halfH; mm <= halfH; mm += minorTick) {
@@ -891,7 +999,6 @@ class LaserCAM {
         ctx.stroke();
     }
 
-    // ⭐ HOME MARKER - Sempre al centro (0,0)
     drawHomeMarker(ctx, scale) {
         const hx = this.pan.x;
         const hy = this.pan.y;
@@ -901,25 +1008,21 @@ class LaserCAM {
         ctx.fillStyle = '#00ff00';
         ctx.lineWidth = 2;
         
-        // Croce grande
         ctx.beginPath();
         ctx.moveTo(hx - 15, hy); ctx.lineTo(hx + 15, hy);
         ctx.moveTo(hx, hy - 15); ctx.lineTo(hx, hy + 15);
         ctx.stroke();
         
-        // Cerchio
         ctx.beginPath(); 
         ctx.arc(hx, hy, 8, 0, Math.PI * 2); 
         ctx.stroke();
         
-        // Labels
         ctx.font = 'bold 10px sans-serif';
         ctx.fillText('HOME', hx + 14, hy - 10);
         ctx.fillText('(0,0)', hx + 14, hy + 4);
         ctx.restore();
     }
 
-    // ⭐ CURRENT POSITION MARKER
     drawCurrentPosMarker(ctx, scale) {
         if (!this.positionKnown) return;
         
@@ -965,12 +1068,11 @@ class LaserCAM {
         ctx.restore();
     }
 
-    // ⭐ DRAW OBJECT - Coordinate relative al centro
+    // ⭐ DRAW OBJECT - CON LIVE PROGRESS
     drawObject(obj) {
         const ctx = this.ctx;
         const scale = this.ppm * this.zoom;
         
-        // obj.x e obj.y sono relativi al centro
         const px = this.pan.x + obj.x * scale;
         const py = this.pan.y + obj.y * scale;
         const pw = obj.w * scale;
@@ -986,20 +1088,57 @@ class LaserCAM {
         ctx.translate(-cx, -cy);
         
         if ((obj.type === 'image' || obj.type === 'text') && obj.image) {
+            // ⭐ Disegna immagine con progress overlay
             ctx.drawImage(obj.image, px, py, pw, ph);
+            
+            if (obj.isProcessing && obj.jobProgress > 0) {
+                // Overlay verde per parte già processata
+                const progressHeight = ph * (obj.jobProgress / 100);
+                ctx.fillStyle = 'rgba(46, 213, 115, 0.3)';
+                ctx.fillRect(px, py, pw, progressHeight);
+                
+                // Linea di avanzamento
+                ctx.strokeStyle = '#2ed573';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(px, py + progressHeight);
+                ctx.lineTo(px + pw, py + progressHeight);
+                ctx.stroke();
+            }
         } else if ((obj.type === 'vector' || obj.type === 'vectorText') && obj.paths.length > 0) {
             obj.paths.forEach((path, pathIndex) => {
-                if (this.editMode && this.editingObject === obj) {
-                    ctx.strokeStyle = this.pathColors[pathIndex % this.pathColors.length];
-                    ctx.lineWidth = obj.selectedPathIndex === pathIndex ? 4 : 2;
+                // ⭐ Determina colore in base a progress
+                let strokeColor, lineWidth;
+                
+                if (obj.isProcessing) {
+                    const pathProgress = (pathIndex / obj.paths.length) * 100;
+                    if (pathProgress <= obj.jobProgress) {
+                        // Path già processato - verde
+                        strokeColor = '#2ed573';
+                        lineWidth = 3;
+                    } else if (pathIndex === Math.floor((obj.jobProgress / 100) * obj.paths.length)) {
+                        // Path in elaborazione - giallo pulsante
+                        strokeColor = '#ffa502';
+                        lineWidth = 4;
+                    } else {
+                        // Path da processare - grigio
+                        strokeColor = '#6c7a89';
+                        lineWidth = 1;
+                    }
+                } else if (this.editMode && this.editingObject === obj) {
+                    strokeColor = this.pathColors[pathIndex % this.pathColors.length];
+                    lineWidth = obj.selectedPathIndex === pathIndex ? 4 : 2;
                     if (obj.selectedPathIndex === pathIndex) {
-                        ctx.shadowColor = ctx.strokeStyle;
+                        ctx.shadowColor = strokeColor;
                         ctx.shadowBlur = 8;
                     }
                 } else {
-                    ctx.strokeStyle = obj.selected ? '#00d4ff' : '#fff';
-                    ctx.lineWidth = obj.selected ? 2 : 1;
+                    strokeColor = obj.selected ? '#00d4ff' : '#fff';
+                    lineWidth = obj.selected ? 2 : 1;
                 }
+                
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
                 
                 ctx.beginPath();
                 path.forEach((p, i) => {
@@ -1031,8 +1170,20 @@ class LaserCAM {
             ctx.fillStyle = '#00d4ff';
             obj.getHandles(this.zoom, this.pan, this.ppm).forEach(h => ctx.fillRect(h.x, h.y, 8, 8));
         }
+        
+        // ⭐ Progress percentage label
+        if (obj.isProcessing && obj.jobProgress > 0) {
+            ctx.save();
+            ctx.fillStyle = '#2ed573';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${Math.round(obj.jobProgress)}%`, cx, cy);
+            ctx.restore();
+        }
     }
-        // ========== SETUP EVENTS ==========
+
+    // ========== SETUP EVENTS ==========
     setupEvents() {
         this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
         this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
@@ -1048,11 +1199,9 @@ class LaserCAM {
             item.addEventListener('click', () => this.handleContextAction(item.dataset.action));
         });
 
-        // Header controls
         document.getElementById('btnConn').addEventListener('click', () => this.toggleConnection());
         document.getElementById('btnStop').addEventListener('click', () => this.emergencyStop());
         
-        // Toolbar
         document.getElementById('btnFit').addEventListener('click', () => this.zoomFit());
         document.getElementById('btnDel').addEventListener('click', () => this.deleteSelected());
         document.getElementById('btnDup').addEventListener('click', () => this.duplicateSelected());
@@ -1066,12 +1215,24 @@ class LaserCAM {
         document.getElementById('btnEditPaths').addEventListener('click', () => this.enterEditMode());
         document.getElementById('btnExitEdit').addEventListener('click', () => this.exitEditMode());
         
-        // Left panel
         document.getElementById('btnSaveProj').addEventListener('click', () => this.saveProject());
         document.getElementById('btnLoadProj').addEventListener('click', () => document.getElementById('projInput').click());
         document.getElementById('btnSaveMach').addEventListener('click', () => this.saveMachine());
         document.getElementById('btnSetHomeCurrent').addEventListener('click', () => this.setHomeFromCurrent());
         document.getElementById('btnGoHome').addEventListener('click', () => this.goHome());
+        
+        // ⭐ NUOVO - Print Area inputs
+        document.getElementById('printAreaX').addEventListener('change', e => {
+            this.printArea.w = Math.max(10, Math.min(+e.target.value, this.workArea.w));
+            this.updatePrintAreaBadge();
+            this.render();
+        });
+        document.getElementById('printAreaY').addEventListener('change', e => {
+            this.printArea.h = Math.max(10, Math.min(+e.target.value, this.workArea.h));
+            this.updatePrintAreaBadge();
+            this.render();
+        });
+        
         document.getElementById('btnAddPreset').addEventListener('click', () => openModal('modalPreset'));
         document.getElementById('btnSavePreset').addEventListener('click', () => this.savePreset());
         document.getElementById('btnAddText').addEventListener('click', () => openModal('modalText'));
@@ -1083,19 +1244,16 @@ class LaserCAM {
         document.getElementById('btnDeletePath').addEventListener('click', () => this.deleteSelectedPath());
         document.getElementById('btnDeleteAllSmall').addEventListener('click', () => this.deleteSmallPaths());
         
-        // Right panel
         document.getElementById('btnSelAll').addEventListener('click', () => this.selectAll());
         document.getElementById('btnClear').addEventListener('click', () => this.clearAll());
         document.getElementById('btnStart').addEventListener('click', () => this.startJob());
         document.getElementById('btnPause').addEventListener('click', () => this.togglePause());
         
-        // Rotation buttons
         document.getElementById('btnRot0').addEventListener('click', () => this.setRotation(0));
         document.getElementById('btnRot90').addEventListener('click', () => this.setRotation(90));
         document.getElementById('btnRot180').addEventListener('click', () => this.setRotation(180));
         document.getElementById('btnRot270').addEventListener('click', () => this.setRotation(270));
         
-        // Simulation
         document.getElementById('btnSimStop').addEventListener('click', () => this.stopSimulation());
         document.getElementById('btnSimPause').addEventListener('click', () => this.toggleSimPause());
         document.getElementById('simSpeed').addEventListener('input', e => {
@@ -1103,11 +1261,9 @@ class LaserCAM {
             document.getElementById('simSpeedVal').textContent = this.simSpeed;
         });
 
-        // File inputs
         document.getElementById('fileInput').addEventListener('change', e => { this.loadFile(e.target.files[0]); e.target.value = ''; });
         document.getElementById('projInput').addEventListener('change', e => { this.loadProject(e.target.files[0]); e.target.value = ''; });
 
-        // Property inputs
         ['propX', 'propY', 'propW', 'propH'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => this.applyProps());
         });
@@ -1130,7 +1286,6 @@ class LaserCAM {
             }
         });
 
-        // Range inputs
         document.getElementById('vecTreshold').addEventListener('input', e => document.getElementById('treshVal').textContent = e.target.value);
         document.getElementById('borderMargin').addEventListener('input', e => document.getElementById('borderMarginVal').textContent = e.target.value);
         document.getElementById('rasterRes').addEventListener('input', e => {
@@ -1141,7 +1296,6 @@ class LaserCAM {
             this.rasterBidir = e.target.checked;
         });
 
-        // Jog controls
         document.querySelectorAll('[data-jog]').forEach(btn => {
             btn.addEventListener('click', () => this.jog(btn.dataset.jog));
         });
@@ -1153,7 +1307,6 @@ class LaserCAM {
             });
         });
         
-        // Console
         document.getElementById('btnConsole').addEventListener('click', () => document.getElementById('console').classList.toggle('show'));
         document.getElementById('btnConsoleClear').addEventListener('click', () => document.getElementById('consoleLog').innerHTML = '');
         document.getElementById('btnConsoleSend').addEventListener('click', () => this.sendManual());
@@ -1161,7 +1314,6 @@ class LaserCAM {
             if (e.key === 'Enter') this.sendManual();
         });
         
-        // Tab buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1171,10 +1323,9 @@ class LaserCAM {
         });
     }
 
-    // ========== HOME POSITION MANAGEMENT - FULL RELATIVE ==========
+    // ========== HOME POSITION MANAGEMENT ==========
     
     loadHomePosition() { 
-        // Home è sempre 0,0 nel sistema relativo
         return { x: 0, y: 0 }; 
     }
     
@@ -1183,18 +1334,15 @@ class LaserCAM {
         document.getElementById('homeY').value = 0; 
     }
     
-    // ⭐ SET HOME FROM CURRENT - Invia G92 X0 Y0
     async setHomeFromCurrent() {
         if (!this.connected) {
             this.log('❌ Not connected to machine', 'err');
             return;
         }
         
-        // Invia G92 per resettare le coordinate macchina
         await this.send('G92 X0 Y0');
         await this.delay(200);
         
-        // Reset tracking
         this.currentPosition = { x: 0, y: 0 };
         this.homePosition = { x: 0, y: 0 };
         this.positionKnown = true;
@@ -1205,11 +1353,9 @@ class LaserCAM {
     }
     
     saveHomePosition() {
-        // In modalità relativa, questo è alias di setHomeFromCurrent
         this.setHomeFromCurrent();
     }
     
-    // ⭐ GO HOME - Movimento relativo verso 0,0
     async goHome() { 
         if (!this.connected) {
             this.log('❌ Not connected', 'err');
@@ -1221,7 +1367,6 @@ class LaserCAM {
             return;
         }
         
-        // Calcola movimento relativo per tornare a 0,0
         const dx = -this.currentPosition.x;
         const dy = -this.currentPosition.y;
         
@@ -1240,37 +1385,72 @@ class LaserCAM {
     }
 
     setHomeAt(x, y) {
-        // In modalità centro-relativa non supportiamo home arbitrari
         this.log('⚠️ Move laser manually to desired position, then click "Set Home from Current"', 'warn');
     }
 
-    // ========== G-CODE GENERATION - FULL RELATIVE VECTOR ==========
+    // ⭐ NUOVO - Verifica se oggetto è dentro print area
+    checkObjectInPrintArea(obj) {
+        const halfW = this.printArea.w / 2;
+        const halfH = this.printArea.h / 2;
+        
+        const objMinX = obj.x;
+        const objMinY = obj.y;
+        const objMaxX = obj.x + obj.w;
+        const objMaxY = obj.y + obj.h;
+        
+        const inBounds = objMinX >= -halfW && objMaxX <= halfW && 
+                         objMinY >= -halfH && objMaxY <= halfH;
+        
+        return inBounds;
+    }
+
+    // ⭐ NUOVO - Verifica tutti gli oggetti
+    checkAllObjectsInPrintArea() {
+        const outOfBounds = this.objects.filter(obj => !this.checkObjectInPrintArea(obj));
+        
+        if (outOfBounds.length > 0) {
+            const names = outOfBounds.map(o => o.name).join(', ');
+            return {
+                valid: false,
+                message: `⚠️ ${outOfBounds.length} object(s) outside print area: ${names}`
+            };
+        }
+        
+        return { valid: true };
+    }
+        // ========== G-CODE GENERATION - CON METADATA PER TRACKING ==========
     
     generateVectorGCode() {
         let gcode = [
-            '; LaserCAM Pro v1.0 - FULL RELATIVE MODE',
+            '; LaserCAM Pro v1.0 - FULL RELATIVE MODE + LIVE PREVIEW',
             '; Home = Center of work area (0,0)',
             '; All movements are G91 (relative)',
             '; Generated: ' + new Date().toLocaleString(),
             '',
             'G17 G21',
-            'G91',          // ⭐ SEMPRE RELATIVO
+            'G91',
             'M5',
             '',
             'M3 S0',
             ''
         ];
         
-        let lastX = 0, lastY = 0; // Partiamo da 0,0
+        let lastX = 0, lastY = 0;
         let totalDist = 0;
         
         const mirrorX = document.getElementById('mirrorX').checked;
         const mirrorY = document.getElementById('mirrorY').checked;
         
+        // ⭐ NUOVO - Metadata per tracking
+        const objectMetadata = [];
+        
         this.objects.forEach(obj => {
             if (!['vector', 'vectorText'].includes(obj.type) || !obj.paths.length) return;
             
+            const objStartLine = gcode.length;
+            
             const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; ===== OBJECT_START: ${obj.id} =====`);
             gcode.push(`; Object: ${obj.name}`);
             gcode.push(`; Power: ${obj.power}%, Speed: ${obj.speed}mm/min, Passes: ${obj.passes}`);
             gcode.push(`F${obj.speed}`);
@@ -1283,14 +1463,12 @@ class LaserCAM {
                 transformedPaths.forEach(path => {
                     if (path.length < 2) return;
                     
-                    // Coordinate assolute relative al centro
                     let firstX = obj.x + path[0].x * obj.w;
                     let firstY = obj.y + path[0].y * obj.h;
                     
                     if (mirrorX) firstX = -firstX;
                     if (mirrorY) firstY = -firstY;
                     
-                    // ⭐ Movimento RELATIVO verso primo punto
                     let dx = firstX - lastX;
                     let dy = firstY - lastY;
                     
@@ -1302,7 +1480,6 @@ class LaserCAM {
                     lastX = firstX;
                     lastY = firstY;
                     
-                    // Incisione path
                     for (let i = 1; i < path.length; i++) {
                         let absX = obj.x + path[i].x * obj.w;
                         let absY = obj.y + path[i].y * obj.h;
@@ -1327,10 +1504,19 @@ class LaserCAM {
                     gcode.push(`G1 X0 Y0 S0`);
                 });
             }
+            
+            const objEndLine = gcode.length;
+            gcode.push(`; ===== OBJECT_END: ${obj.id} =====`);
             gcode.push('');
+            
+            objectMetadata.push({
+                id: obj.id,
+                startLine: objStartLine,
+                endLine: objEndLine,
+                totalLines: objEndLine - objStartLine
+            });
         });
 
-        // ⭐ Ritorno a home (0,0)
         const dxHome = -lastX;
         const dyHome = -lastY;
         
@@ -1342,14 +1528,17 @@ class LaserCAM {
         }
         gcode.push('M2');
         
-        return { code: gcode.join('\n'), lines: gcode.length, dist: totalDist };
+        return { 
+            code: gcode.join('\n'), 
+            lines: gcode.length, 
+            dist: totalDist,
+            metadata: objectMetadata // ⭐ Metadata per tracking
+        };
     }
 
-    // ========== G-CODE GENERATION - FULL RELATIVE RASTER ==========
-    
     generateRasterGCode() {
         let gcode = [
-            '; LaserCAM Pro v1.0 - RASTER FULL RELATIVE',
+            '; LaserCAM Pro v1.0 - RASTER FULL RELATIVE + LIVE PREVIEW',
             `; Resolution: ${this.rasterRes} lines/mm`,
             '; Home = Center (0,0)',
             '; Generated: ' + new Date().toLocaleString(),
@@ -1369,10 +1558,15 @@ class LaserCAM {
         const mirrorX = document.getElementById('mirrorX').checked;
         const mirrorY = document.getElementById('mirrorY').checked;
         
+        const objectMetadata = [];
+        
         this.objects.forEach(obj => {
             if (!['image', 'text'].includes(obj.type) || !obj.image) return;
             
+            const objStartLine = gcode.length;
+            
             const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; ===== OBJECT_START: ${obj.id} =====`);
             gcode.push(`; Object: ${obj.name}`);
             gcode.push(`F${obj.speed}`);
             
@@ -1426,7 +1620,6 @@ class LaserCAM {
                         x1 = tmp;
                     }
                     
-                    // ⭐ Movimento RELATIVO verso inizio segmento
                     let dxStart = x1 - lastX;
                     let dyStart = y - lastY;
                     
@@ -1437,7 +1630,6 @@ class LaserCAM {
                     lastX = x1;
                     lastY = y;
                     
-                    // Incisione RELATIVA
                     const dxBurn = x2 - x1;
                     if (Math.abs(dxBurn) > 0.001) {
                         gcode.push(`G1 X${dxBurn.toFixed(3)} Y0 S${sVal}`);
@@ -1447,10 +1639,19 @@ class LaserCAM {
                     lastX = x2;
                 });
             }
+            
+            const objEndLine = gcode.length;
+            gcode.push(`; ===== OBJECT_END: ${obj.id} =====`);
             gcode.push('');
+            
+            objectMetadata.push({
+                id: obj.id,
+                startLine: objStartLine,
+                endLine: objEndLine,
+                totalLines: objEndLine - objStartLine
+            });
         });
         
-        // ⭐ Ritorno a home
         const dxHome = -lastX;
         const dyHome = -lastY;
         
@@ -1461,11 +1662,25 @@ class LaserCAM {
         }
         gcode.push('M2');
         
-        return { code: gcode.join('\n'), lines: gcode.length, dist: totalDist };
+        return { 
+            code: gcode.join('\n'), 
+            lines: gcode.length, 
+            dist: totalDist,
+            metadata: objectMetadata
+        };
     }
 
     showGCode(mode = 'vector') {
         if (!this.objects.length) { this.log(t('msg_no_objects'), 'err'); return; }
+        
+        // ⭐ Verifica print area
+        const checkResult = this.checkAllObjectsInPrintArea();
+        if (!checkResult.valid) {
+            if (!confirm(checkResult.message + '\n\nContinue anyway?')) {
+                return;
+            }
+        }
+        
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === mode));
         
         const result = mode === 'raster' ? this.generateRasterGCode() : this.generateVectorGCode();
@@ -1493,11 +1708,11 @@ class LaserCAM {
         };
         document.getElementById('btnSendGcode').onclick = () => { 
             closeModal('modalGcode'); 
-            this.startJobWithCode(result.code); 
+            this.startJobWithCode(result.code, result.metadata); 
         };
     }
 
-    // ========== FRAME JOB - FULL RELATIVE ==========
+    // ========== FRAME JOB ==========
     
     async frameJob() {
         if (!this.connected) { this.log('❌ Not connected', 'err'); return; }
@@ -1507,7 +1722,6 @@ class LaserCAM {
             return;
         }
         
-        // Bounds degli oggetti (coordinate relative al centro)
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         this.objects.forEach(o => { 
             minX = Math.min(minX, o.x); 
@@ -1539,12 +1753,9 @@ class LaserCAM {
         await this.send('M3 S5');
         await this.send('F3000');
         
-        // ⭐ Tutti movimenti RELATIVI da posizione corrente (0,0 se siamo a home)
-        // Vai al primo angolo (relativo da 0,0)
         await this.send(`G0 X${minX.toFixed(2)} Y${minY.toFixed(2)}`);
         await this.delay(200);
         
-        // Rettangolo
         await this.send(`G0 X${w.toFixed(2)} Y0`);
         await this.delay(200);
         await this.send(`G0 X0 Y${h.toFixed(2)}`);
@@ -1555,8 +1766,6 @@ class LaserCAM {
         await this.delay(200);
         
         await this.send('M5');
-        
-        // ⭐ Torna a 0,0 (movimento inverso del primo)
         await this.send(`G0 X${(-minX).toFixed(2)} Y${(-minY).toFixed(2)}`);
         
         this.log('✅ Frame complete, returned to home');
@@ -1587,9 +1796,9 @@ class LaserCAM {
             this.startPositionPolling();
             
             await this.delay(1000);
-            await this.send('$X'); // Unlock GRBL
+            await this.send('$X');
             await this.delay(200);
-            await this.send('?'); // Query status
+            await this.send('?');
         } catch (err) { 
             this.log('❌ Connection error: ' + err.message, 'err'); 
         }
@@ -1660,7 +1869,6 @@ class LaserCAM {
     handleResponse(line) {
         this.log('< ' + line, 'recv');
         
-        // Parse posizione da status GRBL
         const mposMatch = line.match(/[MW]Pos:([-\d.]+),([-\d.]+)/);
         if (mposMatch) { 
             this.currentPosition = { 
@@ -1699,6 +1907,16 @@ class LaserCAM {
         this.log('🚨 EMERGENCY STOP', 'err');
         this.jobRunning = false;
         this.stopSimulation();
+        
+        // ⭐ Reset tutti gli oggetti
+        this.objects.forEach(obj => {
+            obj.isProcessing = false;
+            obj.jobProgress = 0;
+        });
+        this.currentProcessingObject = null;
+        
+        document.getElementById('jobRunningBar').classList.remove('show');
+        
         if (this.port?.writable) {
             const w = this.port.writable.getWriter();
             await w.write(new TextEncoder().encode('\x18'));
@@ -1709,19 +1927,29 @@ class LaserCAM {
         document.getElementById('btnStart').disabled = false;
         document.getElementById('progBar').style.width = '0%';
         document.getElementById('footProg').textContent = '0%';
+        this.render();
     }
 
     async startJob() { 
-        await this.startJobWithCode(this.generateVectorGCode().code); 
+        const result = this.generateVectorGCode();
+        await this.startJobWithCode(result.code, result.metadata); 
     }
 
-    async startJobWithCode(code) {
+    // ⭐ START JOB CON LIVE PREVIEW
+    async startJobWithCode(code, metadata = []) {
         if (!this.connected) { 
             this.log('❌ Not connected', 'err'); 
             return; 
         }
         
-        // ⭐ Verifica posizione home
+        // Verifica print area
+        const checkResult = this.checkAllObjectsInPrintArea();
+        if (!checkResult.valid) {
+            if (!confirm(checkResult.message + '\n\nContinue anyway?')) {
+                return;
+            }
+        }
+        
         if (this.positionKnown && (Math.abs(this.currentPosition.x) > 0.1 || Math.abs(this.currentPosition.y) > 0.1)) {
             if (!confirm('⚠️ Laser is not at home (0,0). Go to home first?')) {
                 return;
@@ -1730,31 +1958,91 @@ class LaserCAM {
             await this.delay(500);
         }
         
+        // ⭐ Reset tutti i progress
+        this.objects.forEach(obj => {
+            obj.isProcessing = false;
+            obj.jobProgress = 0;
+        });
+        
         this.jobQueue = code.split('\n').filter(l => l.trim() && !l.startsWith(';'));
+        this.totalJobLines = this.jobQueue.length;
+        this.currentJobLine = 0;
         this.jobRunning = true;
         this.jobPaused = false;
+        this.currentProcessingObject = null;
+        
         document.getElementById('btnStart').disabled = true;
+        document.getElementById('jobRunningBar').classList.add('show');
         this.stopPositionPolling();
         this.log('▶️ Starting job...');
 
         for (let i = 0; i < this.jobQueue.length && this.jobRunning; i++) {
             while (this.jobPaused) await this.delay(100);
-            await this.send(this.jobQueue[i]);
+            
+            const line = this.jobQueue[i];
+            
+            // ⭐ Parse metadata per tracking oggetti
+            if (line.includes('OBJECT_START:')) {
+                const objId = line.split(':')[1].trim().replace('=====', '').trim();
+                const obj = this.objects.find(o => o.id === objId);
+                if (obj) {
+                    this.currentProcessingObject = obj;
+                    obj.isProcessing = true;
+                    obj.jobProgress = 0;
+                    this.log(`🔥 Processing: ${obj.name}`);
+                    this.updateObjList();
+                }
+            } else if (line.includes('OBJECT_END:')) {
+                if (this.currentProcessingObject) {
+                    this.currentProcessingObject.jobProgress = 100;
+                    this.currentProcessingObject.isProcessing = false;
+                    this.log(`✅ Completed: ${this.currentProcessingObject.name}`);
+                    this.currentProcessingObject = null;
+                    this.updateObjList();
+                }
+            }
+            
+            // ⭐ Aggiorna progress oggetto corrente
+            if (this.currentProcessingObject && metadata.length > 0) {
+                const objMeta = metadata.find(m => m.id === this.currentProcessingObject.id);
+                if (objMeta) {
+                    const objProgress = ((i - objMeta.startLine) / objMeta.totalLines) * 100;
+                    this.currentProcessingObject.jobProgress = Math.max(0, Math.min(100, objProgress));
+                }
+            }
+            
+            await this.send(line);
             await this.delay(10);
-            const p = ((i + 1) / this.jobQueue.length) * 100;
+            
+            this.currentJobLine = i + 1;
+            const p = (this.currentJobLine / this.totalJobLines) * 100;
             document.getElementById('progBar').style.width = p + '%';
             document.getElementById('footProg').textContent = Math.round(p) + '%';
+            document.getElementById('jobProgressText').textContent = Math.round(p) + '%';
+            
+            // ⭐ Render ogni 10 righe per non sovraccaricare
+            if (i % 10 === 0) {
+                this.render();
+            }
         }
+
+        // ⭐ Reset finale
+        this.objects.forEach(obj => {
+            obj.isProcessing = false;
+            obj.jobProgress = 0;
+        });
+        this.currentProcessingObject = null;
 
         this.jobRunning = false;
         document.getElementById('btnStart').disabled = false;
+        document.getElementById('jobRunningBar').classList.remove('show');
         this.startPositionPolling();
         
-        // Dopo job, siamo tornati a 0,0
         this.currentPosition = { x: 0, y: 0 };
         this.updateCurrentPosDisplay();
         this.log('✅ Job complete!');
         this.render();
+        this.updateObjList();
     }
 
     togglePause() {
@@ -1783,7 +2071,6 @@ class LaserCAM {
         
         this.send(`$J=G91 X${dx} Y${dy} F3000`);
         
-        // ⭐ Aggiorna tracking
         this.currentPosition.x += dx;
         this.currentPosition.y += dy;
         this.positionKnown = true;
@@ -1800,7 +2087,6 @@ class LaserCAM {
         const mouseY = e.clientY - rect.top;
         const scale = this.ppm * this.zoom;
         
-        // ⭐ Coordinate relative al centro
         const mx = (mouseX - this.pan.x) / scale;
         const my = (mouseY - this.pan.y) / scale;
 
@@ -1859,7 +2145,6 @@ class LaserCAM {
     }
 
     centerObject(obj) {
-        // ⭐ Centra oggetto a 0,0
         obj.x = -obj.w / 2;
         obj.y = -obj.h / 2;
         this.updatePropsDisplay();
@@ -1897,7 +2182,8 @@ class LaserCAM {
         }
         this.render();
     }
-        // ========== PATH EDITING ==========
+
+    // ========== PATH EDITING ==========
     
     enterEditMode() {
         if (!this.selected || !['vector', 'vectorText'].includes(this.selected.type)) {
@@ -1990,7 +2276,6 @@ class LaserCAM {
         const mouseY = e.clientY - rect.top;
         const scale = this.ppm * this.zoom;
         
-        // ⭐ Coordinate relative al centro
         const mx = (mouseX - this.pan.x) / scale;
         const my = (mouseY - this.pan.y) / scale;
 
@@ -2111,16 +2396,20 @@ class LaserCAM {
     // ========== OBJECT MANAGEMENT ==========
     
     updateObjList() {
-        document.getElementById('objList').innerHTML = this.objects.map(obj => `
-            <div class="obj-item ${obj.selected ? 'sel' : ''}" onclick="app.selectObj('${obj.id}')">
+        document.getElementById('objList').innerHTML = this.objects.map(obj => {
+            const isProcessing = obj.isProcessing ? 'processing' : '';
+            const progressText = obj.isProcessing ? ` ${Math.round(obj.jobProgress)}%` : '';
+            
+            return `
+            <div class="obj-item ${obj.selected ? 'sel' : ''} ${isProcessing}" onclick="app.selectObj('${obj.id}')">
                 <div>
                     <span>${obj.type === 'image' ? '🖼️' : obj.type === 'text' ? '📝' : obj.type === 'vectorText' ? '🔤' : '✏️'}</span>
-                    ${obj.name.substring(0, 12)}
+                    ${obj.name.substring(0, 12)}${progressText}
                     <div style="font-size:9px; color:#6c7a89">${obj.w.toFixed(0)}×${obj.h.toFixed(0)}mm ${obj.rotation ? obj.rotation + '°' : ''}</div>
                 </div>
                 <button class="obj-del" onclick="event.stopPropagation(); app.deleteObj('${obj.id}')">×</button>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     selectObj(id) {
@@ -2392,7 +2681,7 @@ class LaserCAM {
         return `${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`; 
     }
 
-    // ========== FILE LOADING - CENTRATO ==========
+    // ========== FILE LOADING ==========
     
     loadFile(file) {
         if (!file) return;
@@ -2401,11 +2690,10 @@ class LaserCAM {
             reader.onload = e => {
                 const img = new Image();
                 img.onload = () => {
-                    const maxSize = Math.min(this.workArea.w, this.workArea.h) * 0.4;
+                    const maxSize = Math.min(this.printArea.w, this.printArea.h) * 0.8;
                     let w = img.width / 10, h = img.height / 10;
                     if (w > maxSize || h > maxSize) { const s = maxSize / Math.max(w, h); w *= s; h *= s; }
                     
-                    // ⭐ Centrato a 0,0
                     const obj = new LaserObject('image', {
                         name: file.name.replace(/\.[^.]+$/, ''), 
                         image: img, 
@@ -2501,7 +2789,6 @@ class LaserCAM {
                     const w = maxX - minX || 1, h = maxY - minY || 1;
                     const norm = paths.map(p => p.map(pt => ({ x: (pt.x - minX) / w, y: (pt.y - minY) / h })));
                     
-                    // ⭐ Centrato a 0,0
                     const obj = new LaserObject('vector', { 
                         name: file.name.replace(/\.[^.]+$/, ''), 
                         paths: norm, 
@@ -2602,7 +2889,7 @@ class LaserCAM {
         return pts;
     }
 
-    // ========== TEXT CREATION - CENTRATO ==========
+    // ========== TEXT CREATION ==========
     
     createText() {
         const text = document.getElementById('textContent').value.trim();
@@ -2621,7 +2908,6 @@ class LaserCAM {
         text.split('\n').forEach((line, i) => ctx.fillText(line, 10, 10 + i * size * 10 * 1.2));
         const img = new Image();
         img.onload = () => {
-            // ⭐ Centrato a 0,0
             const obj = new LaserObject('text', { 
                 name: 'Text_' + text.substring(0,8), 
                 image: img, 
@@ -2733,7 +3019,6 @@ class LaserCAM {
         const totalWidth = fontSize * text.length * 0.7;
         const totalHeight = fontSize * 1.2;
         
-        // ⭐ Centrato a 0,0
         const obj = new LaserObject('vectorText', {
             name: 'VecTxt_' + text.substring(0, 6),
             paths: paths,
@@ -2847,17 +3132,25 @@ class LaserCAM {
     loadMachine() { 
         try { 
             const saved = JSON.parse(localStorage.getItem('laserMachine'));
-            if (saved) return saved;
+            if (saved) {
+                // ⭐ Carica anche print area se salvata
+                if (saved.printArea) this.printArea = saved.printArea;
+                return saved;
+            }
         } catch {} 
         return { maxX: 300, maxY: 300, mirrorX: false, mirrorY: true }; 
     }
     
     saveMachine() {
+        this.printArea.w = +document.getElementById('printAreaX').value;
+        this.printArea.h = +document.getElementById('printAreaY').value;
+        
         this.machine = { 
             maxX: +document.getElementById('machX').value, 
             maxY: +document.getElementById('machY').value,
             mirrorX: document.getElementById('mirrorX').checked,
-            mirrorY: document.getElementById('mirrorY').checked
+            mirrorY: document.getElementById('mirrorY').checked,
+            printArea: this.printArea // ⭐ Salva print area
         };
         localStorage.setItem('laserMachine', JSON.stringify(this.machine));
         this.applyMachineProfile();
@@ -2869,7 +3162,16 @@ class LaserCAM {
         document.getElementById('machY').value = this.machine.maxY;
         document.getElementById('mirrorX').checked = this.machine.mirrorX || false;
         document.getElementById('mirrorY').checked = this.machine.mirrorY !== undefined ? this.machine.mirrorY : true;
+        
+        // ⭐ Applica print area salvata
+        if (this.machine.printArea) {
+            this.printArea = this.machine.printArea;
+            document.getElementById('printAreaX').value = this.printArea.w;
+            document.getElementById('printAreaY').value = this.printArea.h;
+        }
+        
         this.workArea = { w: this.machine.maxX, h: this.machine.maxY };
+        this.updatePrintAreaBadge();
         this.render();
     }
 
@@ -2940,13 +3242,16 @@ class LaserCAM {
     
     saveProject() {
         const project = { 
-            version: '1.0-relative',
-            workArea: this.workArea, 
+            version: '1.0-relative-live',
+            workArea: this.workArea,
+            printArea: this.printArea, // ⭐ Salva print area
             machine: this.machine,
             objects: this.objects.map(obj => {
                 const d = { ...obj }; 
                 delete d.selected; 
                 delete d.selectedPathIndex;
+                delete d.isProcessing;
+                delete d.jobProgress;
                 if (obj.image) { 
                     const c = document.createElement('canvas'); 
                     c.width = obj.image.width; 
@@ -2960,7 +3265,7 @@ class LaserCAM {
         };
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }));
-        a.download = 'project_relative_' + Date.now() + '.lcp';
+        a.download = 'project_relative_live_' + Date.now() + '.lcp';
         a.click();
         this.log('💾 Project saved');
     }
@@ -2980,8 +3285,16 @@ class LaserCAM {
                         maxX: proj.workArea.w, 
                         maxY: proj.workArea.h,
                         mirrorX: proj.machine?.mirrorX || false,
-                        mirrorY: proj.machine?.mirrorY !== undefined ? proj.machine.mirrorY : true
+                        mirrorY: proj.machine?.mirrorY !== undefined ? proj.machine.mirrorY : true,
+                        printArea: proj.printArea || { w: 200, h: 200 }
                     }; 
+                    
+                    if (proj.printArea) {
+                        this.printArea = proj.printArea;
+                        document.getElementById('printAreaX').value = this.printArea.w;
+                        document.getElementById('printAreaY').value = this.printArea.h;
+                    }
+                    
                     this.applyMachineProfile(); 
                 }
                 
@@ -2993,6 +3306,8 @@ class LaserCAM {
                     Object.assign(obj, data);
                     obj.selected = false;
                     obj.selectedPathIndex = -1;
+                    obj.isProcessing = false;
+                    obj.jobProgress = 0;
                     
                     if (data.imageData) { 
                         const img = new Image(); 
@@ -3088,10 +3403,12 @@ window.addEventListener('DOMContentLoaded', () => {
     initLanguageSelector();
     app = new LaserCAM();
     applyTranslations();
-    console.log('✅ LaserCAM Pro v1.0 - FULL RELATIVE MODE');
+    console.log('✅ LaserCAM Pro v1.0 - FULL RELATIVE MODE + LIVE PREVIEW');
     console.log('🎯 Home = Center (0,0) - All coordinates relative');
-    console.log('📋 Shortcuts: Del=delete, R=rotate, H=flipH, V=flipV, Ctrl+D=duplicate, Ctrl+A=selectAll, Ctrl+S=save');
-    console.log('🔧 G-Code: G91 full relative, M3 once, S on each move');
+    console.log('📏 Print Area configurable around home');
+    console.log('🔥 Live job preview with progress tracking');
+    console.log('📋 Shortcuts: Del, R, H, V, Ctrl+D/A/S, Esc');
+    console.log('🔧 G-Code: G91 full relative, M3 once, S on each move, OBJECT markers for tracking');
 });
 </script>
 </body>
