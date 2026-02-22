@@ -3,6 +3,7 @@
 [![Demo](https://img.shields.io/badge/demo-live-success)](https://paulvern.free.nf/laser)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![JavaScript](https://img.shields.io/badge/language-JavaScript-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Languages](https://img.shields.io/badge/languages-10-blue.svg)](#-multi-language-support)
 
 **LaserCAM Pro** is a powerful web-based CAM (Computer-Aided Manufacturing) application for laser cutting and engraving machines. It runs entirely in your browser with no installation required, supporting vector and raster operations, real-time machine control via Web Serial API, and advanced path editing capabilities.
 
@@ -55,9 +56,19 @@
 - **Machine Profiles**: Store work area dimensions and configurations
 
 ### 🌍 **Multi-Language Support**
-- English 🇬🇧
-- Italian 🇮🇹
-- Extensible language system via `lang.js`
+Complete translations available in **10 languages**:
+- 🇬🇧 **English**
+- 🇮🇹 **Italiano**
+- 🇫🇷 **Français**
+- 🇩🇪 **Deutsch**
+- 🇪🇸 **Español**
+- 🇧🇷 **Português**
+- 🇩🇰 **Dansk**
+- 🇷🇺 **Русский**
+- 🇨🇳 **中文 (Chinese)**
+- 🇯🇵 **日本語 (Japanese)**
+
+Switch languages instantly with one click!
 
 ---
 
@@ -89,7 +100,9 @@ git clone https://github.com/yourusername/lasercam-pro.git
 cd lasercam-pro
 ```
 
-2. **Create `lang.js` file** (see [Language File](#language-file) section below)
+2. **Files included**:
+   - `index.html` - Main application
+   - `lang.js` - Language translations (10 languages pre-configured)
 
 3. **Serve with any web server**:
 
@@ -109,11 +122,10 @@ php -S localhost:8000
 http://localhost:8000
 ```
 
-### Option 3: Single HTML File
-The app is self-contained in a single HTML file (except for `lang.js`). You can:
-- Open directly in Chrome/Edge (with `--allow-file-access-from-files` flag for local testing)
-- Upload to any web hosting service
-- Run from USB drive (with limitations on Web Serial API)
+### Option 3: GitHub Pages
+1. Fork this repository
+2. Enable GitHub Pages in repository settings
+3. Access at `https://yourusername.github.io/lasercam-pro`
 
 ---
 
@@ -268,26 +280,45 @@ Built-in presets:
 
 ## ⚙️ Configuration
 
-### Language File
+### Language System
 
-Create `lang.js` with this structure:
+The `lang.js` file is **already included** with 10 complete translations. The language selector appears in the top-right header and switches the entire UI instantly.
 
+**Structure of `lang.js`:**
 ```javascript
 const LANG = {
     en: {
         _flag: '🇬🇧',
+        _name: 'English',
         btn_connect: 'Connect',
-        btn_disconnect: 'Disconnect',
-        btn_start: '▶ START JOB',
-        // ... add all translations
+        btn_start: '▶ START',
+        // ... 100+ translation keys
     },
-    it: {
-        _flag: '🇮🇹',
-        btn_connect: 'Connetti',
-        // ... Italian translations
-    }
+    it: { /* Italian */ },
+    fr: { /* French */ },
+    de: { /* German */ },
+    es: { /* Spanish */ },
+    pt: { /* Portuguese */ },
+    da: { /* Danish */ },
+    ru: { /* Russian */ },
+    zh: { /* Chinese */ },
+    ja: { /* Japanese */ }
 };
 ```
+
+**Adding a New Language:**
+1. Edit `lang.js`
+2. Copy an existing language object (e.g., `en`)
+3. Add new language code (e.g., `nl` for Dutch):
+```javascript
+nl: {
+    _flag: '🇳🇱',
+    _name: 'Nederlands',
+    btn_connect: 'Verbinden',
+    // ... translate all keys
+}
+```
+4. Refresh the page - language selector updates automatically!
 
 ### Machine Settings
 Default settings in `localStorage`:
@@ -297,7 +328,7 @@ Default settings in `localStorage`:
 - `laserLang`: Selected language
 
 ### G-Code Customization
-Edit in code (line ~680):
+Edit in code (line ~680 in HTML):
 ```javascript
 generateVectorGCode() {
     let gcode = [
@@ -331,9 +362,10 @@ generateVectorGCode() {
 ### Technologies Used
 - **HTML5 Canvas**: Rendering and visualization
 - **Web Serial API**: Direct machine communication
-- **ImageTracer.js**: Automatic vectorization
+- **ImageTracer.js**: Automatic vectorization ([github.com/jankovicsandras/imagetracerjs](https://github.com/jankovicsandras/imagetracerjs))
 - **LocalStorage**: Persistent settings
 - **CSS Grid**: Responsive layout
+- **Vanilla JavaScript**: No frameworks, 100% standalone
 
 ### Architecture
 ```
@@ -346,6 +378,15 @@ generateVectorGCode() {
 │  - Presets      │  - Simulation  │                 │
 └─────────────────┴────────────────┴─────────────────┘
 └────────────────── Footer / Console ─────────────────┘
+```
+
+### File Structure
+```
+lasercam-pro/
+├── index.html          # Main application (self-contained)
+├── lang.js            # 10 language translations
+├── README.md          # This file
+└── LICENSE            # MIT License
 ```
 
 ### Data Flow
@@ -382,6 +423,11 @@ G-Code Generation → Simulation / Machine Control
 - Adjust **Speed** slider (1x-100x)
 - Reduce point density by simplifying paths
 
+### Language not switching
+- Ensure `lang.js` is loaded (check browser console)
+- Clear browser cache and refresh
+- Check `LANG` object is defined: open console and type `LANG`
+
 ---
 
 ## 🤝 Contributing
@@ -394,11 +440,13 @@ Contributions are welcome! Please:
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-### Adding Languages
-1. Edit `lang.js`
-2. Add new language object with all keys
-3. Set `_flag` emoji
-4. Test all UI elements
+### Translation Contributors
+Help translate LaserCAM to your language! The `lang.js` file contains ~150 keys. Simply:
+1. Copy an existing language object
+2. Translate all values (keep keys unchanged)
+3. Submit a Pull Request
+
+**Current languages**: English, Italian, French, German, Spanish, Portuguese, Danish, Russian, Chinese, Japanese
 
 ---
 
@@ -410,15 +458,16 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 👏 Credits
 
-- **ImageTracer.js**: [https://github.com/jankovicsandras/imagetracerjs](https://github.com/jankovicsandras/imagetracerjs)
-- **Web Serial API**: [https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API)
+- **ImageTracer.js**: [github.com/jankovicsandras/imagetracerjs](https://github.com/jankovicsandras/imagetracerjs) - András Jankovics
+- **Web Serial API**: [developer.mozilla.org/Web_Serial_API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API)
 - **Icons**: Unicode emoji
+- **Translation Contributors**: Community contributors for 10 language translations
 
 ---
 
 ## 📞 Support
 
-- **Demo**: [https://paulvern.free.nf/laser](https://paulvern.free.nf/laser)
+- **Live Demo**: [https://paulvern.free.nf/laser](https://paulvern.free.nf/laser)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/lasercam-pro/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/lasercam-pro/discussions)
 
@@ -428,13 +477,14 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **Laser safety is paramount!**
 
-- Never leave a running laser unattended
-- Always use proper eye protection
-- Ensure adequate ventilation
-- Keep fire extinguisher nearby
-- Test on scrap material first
-- Verify coordinates before starting jobs
-- Use emergency stop if anything goes wrong
+- ⚠️ Never leave a running laser unattended
+- 👓 Always use proper eye protection (wavelength-specific)
+- 🌬️ Ensure adequate ventilation
+- 🧯 Keep fire extinguisher nearby
+- 🧪 Test on scrap material first
+- 📍 Verify coordinates before starting jobs
+- 🛑 Use emergency stop if anything goes wrong
+- 📖 Read your machine's manual thoroughly
 
 **This software is provided "as is" without warranty. Users are responsible for safe operation of their equipment.**
 
@@ -443,13 +493,26 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ## 🗺️ Roadmap
 
 - [ ] DXF file import
-- [ ] Image filters (blur, sharpen, etc.)
+- [ ] Image filters (blur, sharpen, invert, etc.)
 - [ ] Path optimization (TSP solver)
-- [ ] Rotary axis support
-- [ ] Camera alignment
+- [ ] Rotary axis support (cylindrical engraving)
+- [ ] Camera alignment (vision positioning)
 - [ ] Job queue management
 - [ ] Material library expansion
 - [ ] Offline PWA support
+- [ ] Cloud project storage
+- [ ] More language translations
+
+---
+
+## 📊 Project Stats
+
+- **Lines of Code**: ~2,500 (HTML + JavaScript)
+- **Languages**: 10 complete translations
+- **Dependencies**: 1 (ImageTracer.js via CDN)
+- **Browser Compatibility**: Chrome 89+, Edge 89+, Opera 75+
+- **File Size**: ~120KB (uncompressed)
+- **Development Time**: Professional-grade CAM software
 
 ---
 
@@ -457,6 +520,20 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **Made with ❤️ for the maker community**
 
-⭐ Star this repo if you find it useful!
+⭐ **Star this repo if you find it useful!**
+
+[🔗 Live Demo](https://paulvern.free.nf/laser) | [🐛 Report Bug](https://github.com/yourusername/lasercam-pro/issues) | [✨ Request Feature](https://github.com/yourusername/lasercam-pro/issues)
+
+---
+
+### Quick Links
+
+[Installation](#-installation) • [Usage Guide](#-usage-guide) • [Features](#-key-features) • [Languages](#-multi-language-support) • [Contributing](#-contributing)
+
+---
+
+**LaserCAM Pro** - Professional Laser Engraving in Your Browser
+
+*No installation • 10 Languages • Open Source • Free Forever*
 
 </div>
