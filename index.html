@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LaserCAM 1.0</title>
+<script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+<style>
+:root {
+    --bg: #0a0e1a; --panel: #151b2e; --input: #1e2740; --accent: #00d4ff;
+    --danger: #ff4757; --success: #2ed573; --warn: #ffa502;
+    --text: #e4e9f0; --dim: #6c7a89; --border: #2a3650;
+    --laser: #ff3333; --ruler: #1a2530;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+.app { display: grid; grid-template: 50px 1fr 35px / 260px 1fr 280px; height: 100vh; gap: 1px; background: var(--border); }
+
+header { grid-column: 1/-1; background: var(--panel); display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 2px solid var(--accent); }
+.logo { font-weight: 700; font-size: 18px; }
+.hdr-ctrl { display: flex; gap: 8px; align-items: center; }
+.status { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+.status.on { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.lang-selector { display: flex; gap: 2px; background: var(--input); border-radius: 4px; padding: 2px; }
+.lang-btn { padding: 3px 6px; border: none; background: transparent; color: var(--dim); cursor: pointer; border-radius: 3px; font-size: 10px; }
+.lang-btn.active { background: var(--accent); color: #000; }
+
+aside { background: var(--panel); overflow-y: auto; }
+.sec { padding: 10px; border-bottom: 1px solid var(--border); }
+.sec-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 6px; font-weight: 600; }
+.form-g { margin-bottom: 6px; }
+.form-g label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 3px; }
+input, select, textarea { width: 100%; background: var(--input); border: 1px solid var(--border); color: var(--text); padding: 5px 7px; border-radius: 3px; font-size: 12px; }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+input[type="range"] { accent-color: var(--accent); padding: 0; }
+input[type="checkbox"] { width: auto; }
+.row { display: flex; gap: 5px; }
+.row > * { flex: 1; }
+
+.btn { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s; background: var(--border); color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-p { background: var(--accent); color: #000; }
+.btn-d { background: var(--danger); color: #fff; }
+.btn-s { background: var(--success); color: #000; }
+.btn-w { background: var(--warn); color: #000; }
+.btn-sm { padding: 4px 7px; font-size: 10px; }
+.btn-block { width: 100%; }
+
+main { position: relative; background: #000; overflow: hidden; }
+canvas { position: absolute; top: 0; left: 0; }
+.toolbar { position: absolute; top: 10px; left: 40px; background: rgba(0,0,0,0.9); padding: 6px; border-radius: 6px; display: flex; gap: 4px; backdrop-filter: blur(10px); flex-wrap: wrap; max-width: 400px; z-index: 10; border: 1px solid var(--border); }
+.canvas-info { position: absolute; bottom: 10px; left: 40px; background: rgba(0,0,0,0.8); padding: 6px 10px; border-radius: 6px; font-size: 11px; backdrop-filter: blur(10px); z-index: 10; }
+
+.edit-mode-bar { position: absolute; top: 55px; left: 40px; background: var(--warn); color: #000; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; display: none; z-index: 20; }
+.edit-mode-bar.show { display: flex; align-items: center; gap: 8px; }
+
+.context-menu { position: fixed; background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 0; min-width: 180px; z-index: 2000; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: none; }
+.context-menu.show { display: block; }
+.context-menu-item { padding: 7px 12px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 6px; transition: 0.15s; }
+.context-menu-item:hover { background: var(--accent); color: #000; }
+.context-menu-item.disabled { opacity: 0.4; pointer-events: none; }
+.context-menu-separator { height: 1px; background: var(--border); margin: 4px 0; }
+
+.path-list { max-height: 150px; overflow-y: auto; margin-top: 6px; }
+.path-item { padding: 5px 8px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 3px; cursor: pointer; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
+.path-item:hover { border-color: var(--accent); }
+.path-item.selected { background: rgba(0, 212, 255, 0.2); border-color: var(--accent); }
+.path-item .path-color { width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+.path-item .path-del { background: var(--danger); border: none; color: #fff; padding: 2px 5px; border-radius: 2px; cursor: pointer; font-size: 9px; }
+
+.sim-overlay { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.95); padding: 12px; border-radius: 8px; backdrop-filter: blur(10px); border: 2px solid var(--laser); display: none; min-width: 180px; z-index: 100; }
+.sim-overlay.show { display: block; }
+.sim-overlay h4 { color: var(--laser); margin-bottom: 8px; font-size: 12px; }
+.sim-info { font-size: 11px; }
+.sim-info div { margin: 4px 0; }
+.sim-progress { height: 5px; background: var(--input); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.sim-progress-bar { height: 100%; background: var(--laser); width: 0%; transition: width 0.1s; }
+
+.obj-list { max-height: 180px; overflow-y: auto; }
+.obj-item { padding: 6px 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+.obj-item:hover { background: var(--input); }
+.obj-item.sel { background: rgba(0, 212, 255, 0.15); border-left: 3px solid var(--accent); }
+.obj-del { background: var(--danger); border: none; color: #fff; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 9px; }
+
+footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items: center; padding: 0 15px; gap: 15px; font-size: 11px; border-top: 1px solid var(--border); }
+.progress { flex: 1; height: 5px; background: var(--input); border-radius: 3px; overflow: hidden; max-width: 250px; }
+.progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 1000; }
+.modal.show { display: flex; }
+.modal-content { background: var(--panel); border-radius: 8px; padding: 15px; width: 90%; max-width: 450px; border: 1px solid var(--accent); max-height: 90vh; overflow-y: auto; }
+.modal-content.wide { max-width: 750px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.modal-header h3 { font-size: 14px; }
+.modal-close { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; }
+
+.preset-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.preset-item { padding: 8px; background: var(--input); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; text-align: center; font-size: 10px; position: relative; }
+.preset-item:hover { border-color: var(--accent); }
+.preset-del { position: absolute; top: 2px; right: 2px; background: var(--danger); border: none; color: #fff; width: 14px; height: 14px; border-radius: 50%; font-size: 9px; cursor: pointer; display: none; }
+.preset-item:hover .preset-del { display: block; }
+
+.console { position: fixed; bottom: 35px; left: 0; right: 0; height: 180px; background: var(--panel); border-top: 2px solid var(--accent); display: none; flex-direction: column; z-index: 100; }
+.console.show { display: flex; }
+.console-log { flex: 1; overflow-y: auto; padding: 8px; font-family: 'Courier New', monospace; font-size: 10px; }
+.console-line { padding: 1px 0; }
+.console-line.send { color: var(--success); }
+.console-line.recv { color: #64b5f6; }
+.console-line.err { color: var(--danger); }
+.console-input { display: flex; gap: 4px; padding: 6px; background: var(--input); }
+
+.loading { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 2000; flex-direction: column; gap: 12px; }
+.loading.show { display: flex; }
+.spinner { width: 35px; height: 35px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#gcodeOutput { width: 100%; height: 280px; font-family: 'Courier New', monospace; font-size: 10px; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 8px; resize: vertical; }
+
+.tab-buttons { display: flex; gap: 2px; margin-bottom: 8px; }
+.tab-btn { flex: 1; padding: 6px; border: none; background: var(--input); color: var(--dim); cursor: pointer; font-size: 10px; }
+.tab-btn:first-child { border-radius: 4px 0 0 4px; }
+.tab-btn:last-child { border-radius: 0 4px 4px 0; }
+.tab-btn.active { background: var(--accent); color: #000; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <div class="logo">⚡ LaserCAM Pro v1.0</div>
+        <div class="hdr-ctrl">
+            <div class="lang-selector" id="langSelector"></div>
+            <span class="status" id="status"></span>
+            <span id="statusTxt"></span>
+            <select id="baudRate" style="width:80px"><option>115200</option><option>250000</option><option>9600</option></select>
+            <button class="btn btn-p" id="btnConn"></button>
+            <button class="btn btn-d" id="btnStop"></button>
+        </div>
+    </header>
+
+    <aside id="leftPanel">
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_project"></div>
+            <div class="row">
+                <button class="btn btn-sm" id="btnSaveProj" data-i18n="btn_save"></button>
+                <button class="btn btn-sm" id="btnLoadProj" data-i18n="btn_load"></button>
+            </div>
+        </div>
+
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_machine"></div>
+            <div class="row">
+                <div class="form-g"><label data-i18n="lbl_x_max"></label><input type="number" id="machX" value="300"></div>
+                <div class="form-g"><label data-i18n="lbl_y_max"></label><input type="number" id="machY" value="300"></div>
+            </div>
+            <button class="btn btn-p btn-sm btn-block" id="btnSaveMach" data-i18n="btn_save_profile"></button>
+        </div>
+
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_home"></div>
+            <div class="row">
+                <div class="form-g"><label>X</label><input type="number" id="homeX" value="0" step="0.1"></div>
+                <div class="form-g"><label>Y</label><input type="number" id="homeY" value="0" step="0.1"></div>
+            </div>
+            <div class="row">
+                <button class="btn btn-sm" id="btnSetHome" data-i18n="btn_set"></button>
+                <button class="btn btn-s btn-sm" id="btnGoHome" data-i18n="btn_go"></button>
+            </div>
+            <p style="font-size:9px; color:var(--dim); margin-top:5px" data-i18n="home_tip"></p>
+        </div>
+
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_import"></div>
+            <input type="file" id="fileInput" accept="image/*,.svg" style="display:none">
+            <button class="btn btn-p btn-block btn-sm" onclick="fileInput.click()" data-i18n="btn_import_image"></button>
+            <button class="btn btn-block btn-sm" id="btnAddText" style="margin-top:4px" data-i18n="btn_add_text"></button>
+        </div>
+
+        <div class="sec" id="vecSection" style="display:none">
+            <div class="sec-title" data-i18n="sec_vectorize"></div>
+            <div class="form-g">
+                <label><span data-i18n="lbl_threshold"></span>: <span id="treshVal">128</span></label>
+                <input type="range" id="vecTreshold" min="1" max="255" value="128">
+            </div>
+            <div class="form-g">
+                <label><span data-i18n="lbl_border_margin"></span>: <span id="borderMarginVal">15</span>px</label>
+                <input type="range" id="borderMargin" min="0" max="50" value="15">
+            </div>
+            <div class="form-g">
+                <label><input type="checkbox" id="removeBorders" checked> <span data-i18n="lbl_remove_borders"></span></label>
+            </div>
+            <button class="btn btn-s btn-block btn-sm" id="btnVectorize" data-i18n="btn_vectorize"></button>
+        </div>
+
+        <div class="sec" id="rasterSection" style="display:none">
+            <div class="sec-title" data-i18n="sec_raster"></div>
+            <div class="form-g">
+                <label><span data-i18n="lbl_resolution"></span>: <span id="rasterResVal">10</span> l/mm</label>
+                <input type="range" id="rasterRes" min="2" max="20" value="10">
+            </div>
+            <div class="form-g">
+                <label><input type="checkbox" id="rasterBidir" checked> <span data-i18n="lbl_bidirectional"></span></label>
+            </div>
+            <button class="btn btn-w btn-block btn-sm" id="btnRasterGcode" data-i18n="btn_raster_gcode"></button>
+        </div>
+
+        <div class="sec" id="pathEditSection" style="display:none">
+            <div class="sec-title" data-i18n="sec_path_editor"></div>
+            <div class="path-list" id="pathList"></div>
+            <div class="row" style="margin-top:6px">
+                <button class="btn btn-sm btn-d" id="btnDeletePath" data-i18n="btn_delete"></button>
+                <button class="btn btn-sm" id="btnDeleteAllSmall" data-i18n="btn_delete_small"></button>
+            </div>
+        </div>
+
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_presets"></div>
+            <div class="preset-grid" id="presetGrid"></div>
+            <button class="btn btn-sm btn-block" style="margin-top:6px" id="btnAddPreset" data-i18n="btn_new_preset"></button>
+        </div>
+    </aside>
+
+    <main id="canvasParent">
+        <div class="toolbar">
+            <button class="btn btn-sm" id="btnFit" data-i18n-title="tip_fit">📐</button>
+            <button class="btn btn-sm" id="btnDel" data-i18n-title="tip_delete">🗑️</button>
+            <button class="btn btn-sm" id="btnDup" data-i18n-title="tip_duplicate">📋</button>
+            <button class="btn btn-sm" id="btnGcode" data-i18n-title="tip_gcode">📄</button>
+            <button class="btn btn-sm btn-w" id="btnSimulate" data-i18n-title="tip_simulate">🎬</button>
+            <button class="btn btn-sm" id="btnFrameJob" data-i18n-title="tip_frame">🔲</button>
+            <button class="btn btn-sm" id="btnEditPaths" data-i18n-title="tip_edit_paths">✂️</button>
+        </div>
+        
+        <div class="edit-mode-bar" id="editModeBar">
+            <span data-i18n="edit_mode_label"></span>
+            <button class="btn btn-sm" id="btnExitEdit" data-i18n="btn_exit"></button>
+        </div>
+        
+        <div class="sim-overlay" id="simOverlay">
+            <h4 data-i18n="sim_title"></h4>
+            <div class="sim-info">
+                <div><span data-i18n="sim_pos"></span>: <strong id="simPos">0, 0</strong></div>
+                <div><span data-i18n="sim_progress"></span>: <strong id="simProgress">0%</strong></div>
+                <div><span data-i18n="sim_time"></span>: <strong id="simTime">0:00</strong></div>
+                <div><span data-i18n="sim_mode"></span>: <strong id="simMode">Vector</strong></div>
+            </div>
+            <div class="sim-progress"><div class="sim-progress-bar" id="simProgressBar"></div></div>
+            <div class="form-g">
+                <label><span data-i18n="sim_speed"></span>: <span id="simSpeedVal">10</span>x</label>
+                <input type="range" id="simSpeed" min="1" max="100" value="10">
+            </div>
+            <div class="row" style="margin-top:8px">
+                <button class="btn btn-sm btn-d" id="btnSimStop">⏹</button>
+                <button class="btn btn-sm" id="btnSimPause">⏸</button>
+            </div>
+        </div>
+        
+        <canvas id="canvas"></canvas>
+        <div class="canvas-info">
+            <span data-i18n="lbl_objects"></span>: <strong id="objCount">0</strong> | <span id="cursorPos">0, 0</span> <span id="editInfo"></span>
+        </div>
+    </main>
+
+    <aside id="rightPanel">
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_objects"></div>
+            <div class="obj-list" id="objList"></div>
+            <div class="row" style="margin-top:6px">
+                <button class="btn btn-sm" id="btnSelAll" data-i18n="btn_select_all"></button>
+                <button class="btn btn-sm" id="btnClear" data-i18n="btn_clear"></button>
+            </div>
+        </div>
+
+        <div class="sec" id="propSec" style="display:none">
+            <div class="sec-title" data-i18n="sec_properties"></div>
+            <div class="row">
+                <div class="form-g"><label>X</label><input type="number" id="propX" step="0.1"></div>
+                <div class="form-g"><label>Y</label><input type="number" id="propY" step="0.1"></div>
+            </div>
+            <div class="row">
+                <div class="form-g"><label data-i18n="lbl_width"></label><input type="number" id="propW" step="0.1"></div>
+                <div class="form-g"><label data-i18n="lbl_height"></label><input type="number" id="propH" step="0.1"></div>
+            </div>
+            <div class="form-g">
+                <label><input type="checkbox" id="lockRatio" checked> <span data-i18n="lbl_lock_ratio"></span></label>
+            </div>
+            <div class="form-g">
+                <label><span data-i18n="lbl_power"></span>: <span id="pwrVal">80</span>%</label>
+                <input type="range" id="propPwr" min="1" max="100" value="80">
+            </div>
+            <div class="form-g">
+                <label><span data-i18n="lbl_speed"></span>: <span id="spdVal">1000</span></label>
+                <input type="range" id="propSpd" min="100" max="6000" step="50" value="1000">
+            </div>
+            <div class="form-g">
+                <label data-i18n="lbl_passes"></label>
+                <input type="number" id="propPass" value="1" min="1">
+            </div>
+        </div>
+
+        <div class="sec">
+            <div class="sec-title" data-i18n="sec_jog"></div>
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:3px; max-width:120px; margin:0 auto">
+                <div></div><button class="btn btn-sm" data-jog="Y+">▲</button><div></div>
+                <button class="btn btn-sm" data-jog="X-">◀</button><button class="btn btn-s btn-sm" data-jog="H">⌂</button><button class="btn btn-sm" data-jog="X+">▶</button>
+                <div></div><button class="btn btn-sm" data-jog="Y-">▼</button><div></div>
+            </div>
+            <div class="row" style="margin-top:6px">
+                <button class="btn btn-sm" data-step="0.1">0.1</button>
+                <button class="btn btn-sm" data-step="1">1</button>
+                <button class="btn btn-sm active" data-step="10">10</button>
+            </div>
+        </div>
+
+        <div class="sec">
+            <button class="btn btn-p btn-block" style="padding:10px; font-size:13px" id="btnStart" data-i18n="btn_start"></button>
+            <button class="btn btn-w btn-block btn-sm" style="margin-top:4px" id="btnPause" data-i18n="btn_pause"></button>
+        </div>
+    </aside>
+
+    <footer>
+        <span id="footStatus"></span>
+        <div class="progress"><div class="progress-bar" id="progBar"></div></div>
+        <span id="footProg">0%</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm" id="btnConsole">📟</button>
+    </footer>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" data-action="setHomeHere" data-i18n="ctx_set_home_here"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="select" data-i18n="ctx_select"></div>
+    <div class="context-menu-item" data-action="selectAll" data-i18n="ctx_select_all"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="duplicate" data-i18n="ctx_duplicate"></div>
+    <div class="context-menu-item" data-action="delete" data-i18n="ctx_delete"></div>
+    <div class="context-menu-item" data-action="center" data-i18n="ctx_center"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="vectorize" data-i18n="ctx_vectorize"></div>
+    <div class="context-menu-item" data-action="rasterGcode" data-i18n="ctx_raster_gcode"></div>
+    <div class="context-menu-item" data-action="editPaths" data-i18n="ctx_edit_paths"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="gcode" data-i18n="ctx_gcode_vector"></div>
+    <div class="context-menu-item" data-action="simulate" data-i18n="ctx_simulate"></div>
+    <div class="context-menu-item" data-action="frame" data-i18n="ctx_frame"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="goHome" data-i18n="ctx_go_home"></div>
+</div>
+
+<div class="console" id="console">
+    <div style="background:var(--input); padding:6px; display:flex; justify-content:space-between">
+        <strong>📟 Console</strong>
+        <button class="btn btn-sm" id="btnConsoleClear">Clear</button>
+    </div>
+    <div class="console-log" id="consoleLog"></div>
+    <div class="console-input">
+        <input type="text" id="consoleInput" placeholder="G-Code...">
+        <button class="btn btn-p btn-sm" id="btnConsoleSend" data-i18n="btn_send"></button>
+    </div>
+</div>
+
+<div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div id="loadingText"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal" id="modalPreset">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 data-i18n="modal_new_preset"></h3>
+            <button class="modal-close" onclick="closeModal('modalPreset')">&times;</button>
+        </div>
+        <div class="form-g"><label data-i18n="lbl_name"></label><input type="text" id="presetName"></div>
+        <div class="row">
+            <div class="form-g"><label data-i18n="lbl_power"></label><input type="number" id="presetPwr" value="80"></div>
+            <div class="form-g"><label data-i18n="lbl_speed"></label><input type="number" id="presetSpd" value="1000"></div>
+        </div>
+        <button class="btn btn-p btn-block" id="btnSavePreset" style="margin-top:8px" data-i18n="btn_save"></button>
+    </div>
+</div>
+
+<div class="modal" id="modalText">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 data-i18n="modal_add_text"></h3>
+            <button class="modal-close" onclick="closeModal('modalText')">&times;</button>
+        </div>
+        <div class="form-g"><label data-i18n="lbl_text"></label><textarea id="textContent" rows="2"></textarea></div>
+        <div class="row">
+            <div class="form-g"><label>Font</label><select id="textFont"><option>Arial</option><option>Verdana</option><option>Georgia</option><option>Impact</option></select></div>
+            <div class="form-g"><label data-i18n="lbl_size"></label><input type="number" id="textSize" value="10" min="1"></div>
+        </div>
+        <button class="btn btn-p btn-block" id="btnCreateText" style="margin-top:8px" data-i18n="btn_create"></button>
+    </div>
+</div>
+
+<div class="modal" id="modalGcode">
+    <div class="modal-content wide">
+        <div class="modal-header">
+            <h3 data-i18n="modal_gcode"></h3>
+            <button class="modal-close" onclick="closeModal('modalGcode')">&times;</button>
+        </div>
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="vector" data-i18n="tab_vector"></button>
+            <button class="tab-btn" data-tab="raster" data-i18n="tab_raster"></button>
+        </div>
+        <div style="font-size:11px; margin-bottom:8px; padding:8px; background:var(--input); border-radius:4px;">
+            📊 <strong id="gcodeLines">0</strong> <span data-i18n="lbl_lines"></span> | 
+            📏 <strong id="gcodeDist">0</strong>mm | 
+            ⏱️ <strong id="gcodeTime">0</strong>min
+        </div>
+        <textarea id="gcodeOutput" readonly></textarea>
+        <div class="row" style="margin-top:10px">
+            <button class="btn btn-sm" id="btnCopyGcode" data-i18n="btn_copy"></button>
+            <button class="btn btn-sm" id="btnDownloadGcode" data-i18n="btn_download"></button>
+            <button class="btn btn-p btn-sm" id="btnSendGcode" data-i18n="btn_send_machine"></button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="projInput" accept=".lcp" style="display:none">
+
+<!-- LANGUAGE FILE - Load this externally in production -->
+<script src="lang.js"></script>
+
+<script>
+// ============================================
+// CONSTANTS
+// ============================================
+const RULER_SIZE = 30;
+
+// ============================================
+// LANGUAGE SYSTEM
+// ============================================
+let currentLang = localStorage.getItem('laserLang') || 'it';
+
+function t(key) {
+    return (LANG[currentLang] && LANG[currentLang][key]) || (LANG['en'] && LANG['en'][key]) || key;
+}
+
+function setLanguage(lang) {
+    if (!LANG[lang]) return;
+    currentLang = lang;
+    localStorage.setItem('laserLang', lang);
+    applyTranslations();
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+}
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.dataset.i18nTitle);
+    });
+    // Update dynamic elements
+    document.getElementById('statusTxt').textContent = app?.connected ? t('status_connected') : t('status_disconnected');
+    document.getElementById('btnConn').textContent = app?.connected ? t('btn_disconnect') : t('btn_connect');
+    document.getElementById('btnStop').textContent = t('btn_stop');
+    document.getElementById('footStatus').textContent = t('status_ready');
+    document.getElementById('loadingText').textContent = t('msg_processing');
+}
+
+function initLanguageSelector() {
+    const selector = document.getElementById('langSelector');
+    const langs = Object.keys(LANG);
+    selector.innerHTML = langs.map(code => 
+        `<button class="lang-btn ${code === currentLang ? 'active' : ''}" data-lang="${code}">${LANG[code]._flag || code.toUpperCase()}</button>`
+    ).join('');
+    selector.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+    });
+}
+
+// ============================================
+// LaserObject Class
+// ============================================
+class LaserObject {
+    constructor(type, data = {}) {
+        this.id = 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        this.type = type;
+        this.name = data.name || type + '_' + this.id.substr(-4);
+        this.x = data.x || 10;
+        this.y = data.y || 10;
+        this.w = data.w || 50;
+        this.h = data.h || 50;
+        this.power = data.power || 80;
+        this.speed = data.speed || 1000;
+        this.passes = data.passes || 1;
+        this.image = data.image || null;
+        this.paths = data.paths || [];
+        this.selected = false;
+        this.selectedPathIndex = -1;
+    }
+
+    contains(mx, my) {
+        return mx >= this.x && mx <= this.x + this.w && my >= this.y && my <= this.y + this.h;
+    }
+
+    clone() {
+        return new LaserObject(this.type, {
+            name: this.name + '_copy', x: this.x + 5, y: this.y + 5, w: this.w, h: this.h,
+            power: this.power, speed: this.speed, passes: this.passes, image: this.image,
+            paths: JSON.parse(JSON.stringify(this.paths))
+        });
+    }
+
+    getHandles(scale, pan, ppm) {
+        const px = pan.x + this.x * ppm * scale;
+        const py = pan.y + this.y * ppm * scale;
+        const pw = this.w * ppm * scale;
+        const ph = this.h * ppm * scale;
+        const s = 8;
+        return [
+            { id: 'tl', x: px - s/2, y: py - s/2, cursor: 'nw-resize' },
+            { id: 'tr', x: px + pw - s/2, y: py - s/2, cursor: 'ne-resize' },
+            { id: 'bl', x: px - s/2, y: py + ph - s/2, cursor: 'sw-resize' },
+            { id: 'br', x: px + pw - s/2, y: py + ph - s/2, cursor: 'se-resize' },
+        ];
+    }
+
+    findPathAtPoint(mx, my, tolerance = 3) {
+        for (let i = 0; i < this.paths.length; i++) {
+            const path = this.paths[i];
+            for (let j = 0; j < path.length - 1; j++) {
+                const p1x = this.x + path[j].x * this.w;
+                const p1y = this.y + path[j].y * this.h;
+                const p2x = this.x + path[j+1].x * this.w;
+                const p2y = this.y + path[j+1].y * this.h;
+                if (this.pointToLineDistance(mx, my, p1x, p1y, p2x, p2y) < tolerance) return i;
+            }
+        }
+        return -1;
+    }
+
+    pointToLineDistance(px, py, x1, y1, x2, y2) {
+        const A = px - x1, B = py - y1, C = x2 - x1, D = y2 - y1;
+        const dot = A * C + B * D, lenSq = C * C + D * D;
+        let param = lenSq !== 0 ? dot / lenSq : -1;
+        let xx, yy;
+        if (param < 0) { xx = x1; yy = y1; }
+        else if (param > 1) { xx = x2; yy = y2; }
+        else { xx = x1 + param * C; yy = y1 + param * D; }
+        return Math.sqrt((px - xx) ** 2 + (py - yy) ** 2);
+    }
+}
+
+// ============================================
+// LaserCAM Class
+// ============================================
+class LaserCAM {
+    constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.objects = [];
+        this.selected = null;
+        
+        this.zoom = 1;
+        this.pan = { x: RULER_SIZE + 10, y: RULER_SIZE + 10 };
+        this.ppm = 2;
+        this.workArea = { w: 300, h: 300 };
+        
+        this.resizing = false;
+        this.resizeHandle = null;
+        this.resizeStart = {};
+        this.dragging = false;
+        this.dragStart = { x: 0, y: 0 };
+        
+        this.port = null;
+        this.reader = null;
+        this.connected = false;
+        this.jobRunning = false;
+        this.jobPaused = false;
+        this.jobQueue = [];
+        
+        this.machine = this.loadMachine();
+        this.presets = this.loadPresets();
+        this.jogStep = 10;
+        
+        this.homePosition = this.loadHomePosition();
+        this.currentPosition = { x: 0, y: 0 };
+        
+        this.simulating = false;
+        this.simPaused = false;
+        this.simSpeed = 10;
+        this.simData = null;
+        this.simAnimationId = null;
+        this.simMode = 'vector';
+        
+        this.editMode = false;
+        this.editingObject = null;
+        this.contextMenuPos = { x: 0, y: 0 };
+        
+        this.rasterRes = 10;
+        this.rasterBidir = true;
+        
+        this.pathColors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe', '#00b894', '#e17055'];
+        
+        this.init();
+    }
+
+    init() {
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.setupEvents();
+        this.renderPresets();
+        this.render();
+        this.applyMachineProfile();
+        this.applyHomePosition();
+    }
+
+    resize() {
+        const parent = document.getElementById('canvasParent');
+        this.canvas.width = parent.clientWidth;
+        this.canvas.height = parent.clientHeight;
+        this.render();
+    }
+
+    render() {
+        const ctx = this.ctx;
+        const W = this.canvas.width, H = this.canvas.height;
+        
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const scale = this.ppm * this.zoom;
+        const areaW = this.workArea.w * scale;
+        const areaH = this.workArea.h * scale;
+        
+        this.drawRulers(ctx, scale, areaW, areaH);
+        
+        ctx.fillStyle = '#0a0f18';
+        ctx.fillRect(this.pan.x, this.pan.y, areaW, areaH);
+        
+        ctx.strokeStyle = '#1a2030';
+        ctx.lineWidth = 1;
+        const gridMM = this.zoom < 0.5 ? 50 : this.zoom < 1 ? 20 : 10;
+        for (let x = 0; x <= this.workArea.w; x += gridMM) {
+            const px = this.pan.x + x * scale;
+            ctx.beginPath(); ctx.moveTo(px, this.pan.y); ctx.lineTo(px, this.pan.y + areaH); ctx.stroke();
+        }
+        for (let y = 0; y <= this.workArea.h; y += gridMM) {
+            const py = this.pan.y + y * scale;
+            ctx.beginPath(); ctx.moveTo(this.pan.x, py); ctx.lineTo(this.pan.x + areaW, py); ctx.stroke();
+        }
+        
+        ctx.strokeStyle = '#3a4a6a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.pan.x, this.pan.y, areaW, areaH);
+
+        this.drawHomeMarker(ctx, scale);
+        this.objects.forEach(obj => this.drawObject(obj));
+        
+        if (this.simulating && this.simData?.currentPoint) {
+            this.drawLaserPoint(ctx, scale, this.simData.currentPoint, this.simData.laserOn);
+        }
+        
+        document.getElementById('objCount').textContent = this.objects.length;
+        document.getElementById('editInfo').textContent = this.editMode && this.editingObject ? 
+            `| ${t('editing')}: ${this.editingObject.paths.length} paths` : '';
+    }
+
+    drawRulers(ctx, scale, areaW, areaH) {
+        const W = this.canvas.width, H = this.canvas.height;
+        
+        ctx.fillStyle = '#1a2530';
+        ctx.fillRect(0, 0, W, RULER_SIZE);
+        ctx.fillRect(0, RULER_SIZE, RULER_SIZE, H - RULER_SIZE);
+        
+        ctx.fillStyle = '#252f3f';
+        ctx.fillRect(0, 0, RULER_SIZE, RULER_SIZE);
+        
+        ctx.fillStyle = '#6c7a89';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('mm', RULER_SIZE/2, RULER_SIZE/2);
+        
+        let majorTick = 50, minorTick = 10;
+        if (this.zoom > 1.5) { majorTick = 20; minorTick = 5; }
+        if (this.zoom > 3) { majorTick = 10; minorTick = 2; }
+        if (this.zoom < 0.5) { majorTick = 100; minorTick = 20; }
+        
+        ctx.strokeStyle = '#4a5a6a';
+        ctx.fillStyle = '#8a9aaa';
+        ctx.font = '8px sans-serif';
+        
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let mm = 0; mm <= this.workArea.w; mm += minorTick) {
+            const px = this.pan.x + mm * scale;
+            if (px < RULER_SIZE || px > W) continue;
+            const isMajor = mm % majorTick === 0;
+            ctx.beginPath();
+            ctx.moveTo(px, RULER_SIZE - (isMajor ? 10 : 5));
+            ctx.lineTo(px, RULER_SIZE);
+            ctx.stroke();
+            if (isMajor) ctx.fillText(mm.toString(), px, RULER_SIZE - 18);
+        }
+        
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let mm = 0; mm <= this.workArea.h; mm += minorTick) {
+            const py = this.pan.y + mm * scale;
+            if (py < RULER_SIZE || py > H) continue;
+            const isMajor = mm % majorTick === 0;
+            ctx.beginPath();
+            ctx.moveTo(RULER_SIZE - (isMajor ? 10 : 5), py);
+            ctx.lineTo(RULER_SIZE, py);
+            ctx.stroke();
+            if (isMajor) ctx.fillText(mm.toString(), RULER_SIZE - 12, py);
+        }
+        
+        ctx.strokeStyle = '#3a4a6a';
+        ctx.beginPath();
+        ctx.moveTo(RULER_SIZE, 0); ctx.lineTo(RULER_SIZE, H);
+        ctx.moveTo(0, RULER_SIZE); ctx.lineTo(W, RULER_SIZE);
+        ctx.stroke();
+    }
+
+    drawHomeMarker(ctx, scale) {
+        const hx = this.pan.x + this.homePosition.x * scale;
+        const hy = this.pan.y + this.homePosition.y * scale;
+        ctx.save();
+        ctx.strokeStyle = '#00ff00';
+        ctx.fillStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(hx - 10, hy); ctx.lineTo(hx + 10, hy);
+        ctx.moveTo(hx, hy - 10); ctx.lineTo(hx, hy + 10);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillText('H', hx + 10, hy - 8);
+        ctx.restore();
+    }
+
+    drawLaserPoint(ctx, scale, point, laserOn) {
+        const px = this.pan.x + point.x * scale;
+        const py = this.pan.y + point.y * scale;
+        ctx.save();
+        if (laserOn) {
+            const gradient = ctx.createRadialGradient(px, py, 0, px, py, 18);
+            gradient.addColorStop(0, 'rgba(255, 50, 50, 1)');
+            gradient.addColorStop(0.4, 'rgba(255, 50, 50, 0.4)');
+            gradient.addColorStop(1, 'rgba(255, 50, 50, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = '#00d4ff';
+            ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    drawObject(obj) {
+        const ctx = this.ctx;
+        const scale = this.ppm * this.zoom;
+        const px = this.pan.x + obj.x * scale;
+        const py = this.pan.y + obj.y * scale;
+        const pw = obj.w * scale;
+        const ph = obj.h * scale;
+
+        ctx.save();
+        
+        if ((obj.type === 'image' || obj.type === 'text') && obj.image) {
+            ctx.drawImage(obj.image, px, py, pw, ph);
+        } else if (obj.type === 'vector' && obj.paths.length > 0) {
+            obj.paths.forEach((path, pathIndex) => {
+                if (this.editMode && this.editingObject === obj) {
+                    ctx.strokeStyle = this.pathColors[pathIndex % this.pathColors.length];
+                    ctx.lineWidth = obj.selectedPathIndex === pathIndex ? 4 : 2;
+                    if (obj.selectedPathIndex === pathIndex) {
+                        ctx.shadowColor = ctx.strokeStyle;
+                        ctx.shadowBlur = 8;
+                    }
+                } else {
+                    ctx.strokeStyle = obj.selected ? '#00d4ff' : '#fff';
+                    ctx.lineWidth = obj.selected ? 2 : 1;
+                }
+                
+                ctx.beginPath();
+                path.forEach((p, i) => {
+                    const vx = px + p.x * pw;
+                    const vy = py + p.y * ph;
+                    i === 0 ? ctx.moveTo(vx, vy) : ctx.lineTo(vx, vy);
+                });
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        if (obj.selected && !this.editMode) {
+            ctx.strokeStyle = '#00d4ff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#00d4ff';
+            obj.getHandles(this.zoom, this.pan, this.ppm).forEach(h => ctx.fillRect(h.x, h.y, 8, 8));
+        }
+        
+        ctx.restore();
+    }
+
+    setupEvents() {
+        this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+        this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+        this.canvas.addEventListener('mouseup', () => this.onMouseUp());
+        this.canvas.addEventListener('wheel', e => this.onWheel(e));
+        this.canvas.addEventListener('contextmenu', e => this.onContextMenu(e));
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.context-menu')) this.hideContextMenu();
+        });
+
+        document.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', () => this.handleContextAction(item.dataset.action));
+        });
+
+        document.getElementById('btnConn').addEventListener('click', () => this.toggleConnection());
+        document.getElementById('btnStop').addEventListener('click', () => this.emergencyStop());
+        document.getElementById('btnFit').addEventListener('click', () => this.zoomFit());
+        document.getElementById('btnDel').addEventListener('click', () => this.deleteSelected());
+        document.getElementById('btnDup').addEventListener('click', () => this.duplicateSelected());
+        document.getElementById('btnGcode').addEventListener('click', () => this.showGCode('vector'));
+        document.getElementById('btnSelAll').addEventListener('click', () => this.selectAll());
+        document.getElementById('btnClear').addEventListener('click', () => this.clearAll());
+        document.getElementById('btnVectorize').addEventListener('click', () => this.vectorize());
+        document.getElementById('btnStart').addEventListener('click', () => this.startJob());
+        document.getElementById('btnPause').addEventListener('click', () => this.togglePause());
+        document.getElementById('btnConsole').addEventListener('click', () => document.getElementById('console').classList.toggle('show'));
+        document.getElementById('btnConsoleClear').addEventListener('click', () => document.getElementById('consoleLog').innerHTML = '');
+        document.getElementById('btnConsoleSend').addEventListener('click', () => this.sendManual());
+        
+        document.getElementById('btnSaveProj').addEventListener('click', () => this.saveProject());
+        document.getElementById('btnLoadProj').addEventListener('click', () => document.getElementById('projInput').click());
+        document.getElementById('btnSaveMach').addEventListener('click', () => this.saveMachine());
+        document.getElementById('btnAddPreset').addEventListener('click', () => openModal('modalPreset'));
+        document.getElementById('btnSavePreset').addEventListener('click', () => this.savePreset());
+        document.getElementById('btnAddText').addEventListener('click', () => openModal('modalText'));
+        document.getElementById('btnCreateText').addEventListener('click', () => this.createText());
+        
+        document.getElementById('btnSetHome').addEventListener('click', () => this.saveHomePosition());
+        document.getElementById('btnGoHome').addEventListener('click', () => this.goHome());
+        
+        document.getElementById('btnSimulate').addEventListener('click', () => this.startSimulation());
+        document.getElementById('btnSimStop').addEventListener('click', () => this.stopSimulation());
+        document.getElementById('btnSimPause').addEventListener('click', () => this.toggleSimPause());
+        document.getElementById('simSpeed').addEventListener('input', e => {
+            this.simSpeed = +e.target.value;
+            document.getElementById('simSpeedVal').textContent = this.simSpeed;
+        });
+        
+        document.getElementById('btnFrameJob').addEventListener('click', () => this.frameJob());
+        
+        document.getElementById('btnEditPaths').addEventListener('click', () => this.enterEditMode());
+        document.getElementById('btnExitEdit').addEventListener('click', () => this.exitEditMode());
+        document.getElementById('btnDeletePath').addEventListener('click', () => this.deleteSelectedPath());
+        document.getElementById('btnDeleteAllSmall').addEventListener('click', () => this.deleteSmallPaths());
+        
+        document.getElementById('btnRasterGcode').addEventListener('click', () => this.showGCode('raster'));
+        document.getElementById('rasterRes').addEventListener('input', e => {
+            this.rasterRes = +e.target.value;
+            document.getElementById('rasterResVal').textContent = e.target.value;
+        });
+        document.getElementById('rasterBidir').addEventListener('change', e => {
+            this.rasterBidir = e.target.checked;
+        });
+
+        document.getElementById('fileInput').addEventListener('change', e => { this.loadFile(e.target.files[0]); e.target.value = ''; });
+        document.getElementById('projInput').addEventListener('change', e => { this.loadProject(e.target.files[0]); e.target.value = ''; });
+
+        ['propX', 'propY', 'propW', 'propH'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => this.applyProps());
+        });
+        document.getElementById('propPwr').addEventListener('input', e => {
+            document.getElementById('pwrVal').textContent = e.target.value;
+            if (this.selected) this.selected.power = +e.target.value;
+        });
+        document.getElementById('propSpd').addEventListener('input', e => {
+            document.getElementById('spdVal').textContent = e.target.value;
+            if (this.selected) this.selected.speed = +e.target.value;
+        });
+        document.getElementById('propPass').addEventListener('change', e => {
+            if (this.selected) this.selected.passes = +e.target.value;
+        });
+
+        document.getElementById('vecTreshold').addEventListener('input', e => document.getElementById('treshVal').textContent = e.target.value);
+        document.getElementById('borderMargin').addEventListener('input', e => document.getElementById('borderMarginVal').textContent = e.target.value);
+
+        document.querySelectorAll('[data-jog]').forEach(btn => {
+            btn.addEventListener('click', () => this.jog(btn.dataset.jog));
+        });
+        document.querySelectorAll('[data-step]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-step]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.jogStep = +btn.dataset.step;
+            });
+        });
+
+        document.getElementById('consoleInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') this.sendManual();
+        });
+        
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.showGCode(btn.dataset.tab);
+            });
+        });
+    }
+
+    // ========== CONTEXT MENU ==========
+    onContextMenu(e) {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const scale = this.ppm * this.zoom;
+        const mx = (mouseX - this.pan.x) / scale;
+        const my = (mouseY - this.pan.y) / scale;
+
+        this.contextMenuPos = { x: mx, y: my };
+
+        let clickedObj = null;
+        for (let i = this.objects.length - 1; i >= 0; i--) {
+            if (this.objects[i].contains(mx, my)) { clickedObj = this.objects[i]; break; }
+        }
+
+        this.contextMenuTarget = clickedObj;
+        
+        const menu = document.getElementById('contextMenu');
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+        
+        const inWorkArea = mx >= 0 && mx <= this.workArea.w && my >= 0 && my <= this.workArea.h;
+        
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            const action = item.dataset.action;
+            item.classList.remove('disabled');
+            
+            if (action === 'setHomeHere' && !inWorkArea) item.classList.add('disabled');
+            if (['delete', 'duplicate', 'center'].includes(action) && !clickedObj) item.classList.add('disabled');
+            if (action === 'vectorize' && (!clickedObj || !['image', 'text'].includes(clickedObj.type))) item.classList.add('disabled');
+            if (action === 'rasterGcode' && (!clickedObj || !['image', 'text'].includes(clickedObj.type))) item.classList.add('disabled');
+            if (action === 'editPaths' && (!clickedObj || clickedObj.type !== 'vector')) item.classList.add('disabled');
+            if (['goHome', 'frame'].includes(action) && !this.connected) item.classList.add('disabled');
+        });
+        
+        menu.classList.add('show');
+    }
+
+    hideContextMenu() {
+        document.getElementById('contextMenu').classList.remove('show');
+    }
+
+    handleContextAction(action) {
+        this.hideContextMenu();
+        
+        switch(action) {
+            case 'setHomeHere': this.setHomeAt(this.contextMenuPos.x, this.contextMenuPos.y); break;
+            case 'select': if (this.contextMenuTarget) this.selectObj(this.contextMenuTarget.id); break;
+            case 'selectAll': this.selectAll(); break;
+            case 'duplicate': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.duplicateSelected(); } break;
+            case 'delete': if (this.contextMenuTarget) this.deleteObj(this.contextMenuTarget.id); break;
+            case 'vectorize': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.vectorize(); } break;
+            case 'rasterGcode': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.showGCode('raster'); } break;
+            case 'editPaths': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.enterEditMode(); } break;
+            case 'gcode': this.showGCode('vector'); break;
+            case 'simulate': this.startSimulation(); break;
+            case 'frame': this.frameJob(); break;
+            case 'center': if (this.contextMenuTarget) this.centerObject(this.contextMenuTarget); break;
+            case 'goHome': this.goHome(); break;
+        }
+    }
+
+    setHomeAt(x, y) {
+        x = Math.max(0, Math.min(this.workArea.w, x));
+        y = Math.max(0, Math.min(this.workArea.h, y));
+        this.homePosition = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+        document.getElementById('homeX').value = this.homePosition.x;
+        document.getElementById('homeY').value = this.homePosition.y;
+        localStorage.setItem('laserHome', JSON.stringify(this.homePosition));
+        this.log(t('msg_home_set') + `: X${this.homePosition.x} Y${this.homePosition.y}`);
+        this.render();
+    }
+
+    centerObject(obj) {
+        obj.x = (this.workArea.w - obj.w) / 2;
+        obj.y = (this.workArea.h - obj.h) / 2;
+        this.updatePropsDisplay();
+        this.render();
+        this.log(t('msg_centered'));
+    }
+
+    // ========== PATH EDITING ==========
+    enterEditMode() {
+        if (!this.selected || this.selected.type !== 'vector') {
+            this.log(t('msg_select_vector'), 'err');
+            return;
+        }
+        this.editMode = true;
+        this.editingObject = this.selected;
+        this.editingObject.selectedPathIndex = -1;
+        document.getElementById('editModeBar').classList.add('show');
+        document.getElementById('pathEditSection').style.display = 'block';
+        this.updatePathList();
+        this.render();
+    }
+
+    exitEditMode() {
+        this.editMode = false;
+        if (this.editingObject) this.editingObject.selectedPathIndex = -1;
+        this.editingObject = null;
+        document.getElementById('editModeBar').classList.remove('show');
+        document.getElementById('pathEditSection').style.display = 'none';
+        this.render();
+    }
+
+    updatePathList() {
+        if (!this.editingObject) return;
+        document.getElementById('pathList').innerHTML = this.editingObject.paths.map((path, i) => {
+            const len = this.pathLength(path) * Math.max(this.editingObject.w, this.editingObject.h);
+            const color = this.pathColors[i % this.pathColors.length];
+            return `
+                <div class="path-item ${this.editingObject.selectedPathIndex === i ? 'selected' : ''}" onclick="app.selectPath(${i})">
+                    <div style="display:flex; align-items:center">
+                        <div class="path-color" style="background:${color}"></div>
+                        #${i+1} (${len.toFixed(1)}mm)
+                    </div>
+                    <button class="path-del" onclick="event.stopPropagation(); app.deletePath(${i})">×</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    selectPath(i) {
+        if (!this.editingObject) return;
+        this.editingObject.selectedPathIndex = i;
+        this.updatePathList();
+        this.render();
+    }
+
+    deletePath(i) {
+        if (!this.editingObject) return;
+        this.editingObject.paths.splice(i, 1);
+        this.editingObject.selectedPathIndex = -1;
+        this.updatePathList();
+        this.render();
+        this.log(t('msg_path_deleted').replace('{n}', i + 1));
+    }
+
+    deleteSelectedPath() {
+        if (this.editingObject?.selectedPathIndex >= 0) this.deletePath(this.editingObject.selectedPathIndex);
+    }
+
+    deleteSmallPaths() {
+        if (!this.editingObject) return;
+        const before = this.editingObject.paths.length;
+        this.editingObject.paths = this.editingObject.paths.filter(p => 
+            this.pathLength(p) * Math.max(this.editingObject.w, this.editingObject.h) >= 3
+        );
+        const removed = before - this.editingObject.paths.length;
+        this.editingObject.selectedPathIndex = -1;
+        this.updatePathList();
+        this.render();
+        this.log(t('msg_small_paths_deleted').replace('{n}', removed));
+    }
+
+    // ========== MOUSE EVENTS ==========
+    onMouseDown(e) {
+        if (e.button === 2) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const scale = this.ppm * this.zoom;
+        const mx = (mouseX - this.pan.x) / scale;
+        const my = (mouseY - this.pan.y) / scale;
+
+        if (this.editMode && this.editingObject) {
+            const pathIndex = this.editingObject.findPathAtPoint(mx, my, 5 / scale);
+            if (pathIndex >= 0) {
+                this.editingObject.selectedPathIndex = pathIndex;
+                this.updatePathList();
+                this.render();
+                return;
+            }
+        }
+
+        if (this.selected && !this.editMode) {
+            for (const h of this.selected.getHandles(this.zoom, this.pan, this.ppm)) {
+                if (mouseX >= h.x && mouseX <= h.x + 8 && mouseY >= h.y && mouseY <= h.y + 8) {
+                    this.resizing = true;
+                    this.resizeHandle = h.id;
+                    this.resizeStart = { mouseX, mouseY, x: this.selected.x, y: this.selected.y, w: this.selected.w, h: this.selected.h };
+                    return;
+                }
+            }
+        }
+
+        let clickedObj = null;
+        for (let i = this.objects.length - 1; i >= 0; i--) {
+            if (this.objects[i].contains(mx, my)) { clickedObj = this.objects[i]; break; }
+        }
+
+        if (!this.editMode) {
+            this.objects.forEach(o => o.selected = false);
+            if (clickedObj) {
+                clickedObj.selected = true;
+                this.selected = clickedObj;
+                this.dragging = true;
+                this.dragStart = { x: mx - clickedObj.x, y: my - clickedObj.y };
+                this.updateProps();
+            } else {
+                this.selected = null;
+                document.getElementById('propSec').style.display = 'none';
+                document.getElementById('vecSection').style.display = 'none';
+                document.getElementById('rasterSection').style.display = 'none';
+            }
+        }
+        
+        this.render();
+        this.updateObjList();
+    }
+
+    onMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const scale = this.ppm * this.zoom;
+        const mx = (mouseX - this.pan.x) / scale;
+        const my = (mouseY - this.pan.y) / scale;
+
+        document.getElementById('cursorPos').textContent = `${mx.toFixed(1)}, ${my.toFixed(1)} mm`;
+
+        if (this.resizing && this.selected) {
+            const dx = (mouseX - this.resizeStart.mouseX) / scale;
+            const dy = (mouseY - this.resizeStart.mouseY) / scale;
+            const lock = document.getElementById('lockRatio').checked;
+            const aspect = this.resizeStart.w / this.resizeStart.h;
+            
+            let newX = this.resizeStart.x, newY = this.resizeStart.y;
+            let newW = this.resizeStart.w, newH = this.resizeStart.h;
+
+            if (this.resizeHandle === 'br') { newW = Math.max(5, this.resizeStart.w + dx); newH = lock ? newW / aspect : Math.max(5, this.resizeStart.h + dy); }
+            else if (this.resizeHandle === 'bl') { newW = Math.max(5, this.resizeStart.w - dx); newX = this.resizeStart.x + this.resizeStart.w - newW; newH = lock ? newW / aspect : Math.max(5, this.resizeStart.h + dy); }
+            else if (this.resizeHandle === 'tr') { newW = Math.max(5, this.resizeStart.w + dx); newH = lock ? newW / aspect : Math.max(5, this.resizeStart.h - dy); newY = this.resizeStart.y + this.resizeStart.h - newH; }
+            else if (this.resizeHandle === 'tl') { newW = Math.max(5, this.resizeStart.w - dx); newH = lock ? newW / aspect : Math.max(5, this.resizeStart.h - dy); newX = this.resizeStart.x + this.resizeStart.w - newW; newY = this.resizeStart.y + this.resizeStart.h - newH; }
+
+            this.selected.x = newX; this.selected.y = newY; this.selected.w = newW; this.selected.h = newH;
+            this.updatePropsDisplay();
+            this.render();
+            return;
+        }
+
+        if (this.dragging && this.selected) {
+            this.selected.x = mx - this.dragStart.x;
+            this.selected.y = my - this.dragStart.y;
+            this.updatePropsDisplay();
+            this.render();
+            return;
+        }
+
+        this.canvas.style.cursor = this.editMode ? 'crosshair' : 'default';
+        if (this.selected && !this.editMode) {
+            for (const h of this.selected.getHandles(this.zoom, this.pan, this.ppm)) {
+                if (mouseX >= h.x && mouseX <= h.x + 8 && mouseY >= h.y && mouseY <= h.y + 8) {
+                    this.canvas.style.cursor = h.cursor;
+                    return;
+                }
+            }
+            if (this.selected.contains(mx, my)) this.canvas.style.cursor = 'move';
+        }
+    }
+
+    onMouseUp() { this.dragging = false; this.resizing = false; }
+
+    onWheel(e) {
+        e.preventDefault();
+        const oldZoom = this.zoom;
+        this.zoom *= e.deltaY > 0 ? 0.9 : 1.1;
+        this.zoom = Math.max(0.2, Math.min(5, this.zoom));
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        
+        this.pan.x = mx - (mx - this.pan.x) * (this.zoom / oldZoom);
+        this.pan.y = my - (my - this.pan.y) * (this.zoom / oldZoom);
+        
+        this.render();
+    }
+
+    // ========== OBJECT MANAGEMENT ==========
+    updateObjList() {
+        document.getElementById('objList').innerHTML = this.objects.map(obj => `
+            <div class="obj-item ${obj.selected ? 'sel' : ''}" onclick="app.selectObj('${obj.id}')">
+                <div>
+                    <span>${obj.type === 'image' ? '🖼️' : obj.type === 'text' ? '📝' : '✏️'}</span>
+                    ${obj.name.substring(0, 12)}
+                    <div style="font-size:9px; color:#6c7a89">${obj.w.toFixed(0)}×${obj.h.toFixed(0)}mm</div>
+                </div>
+                <button class="obj-del" onclick="event.stopPropagation(); app.deleteObj('${obj.id}')">×</button>
+            </div>
+        `).join('');
+    }
+
+    selectObj(id) {
+        if (this.editMode) this.exitEditMode();
+        this.objects.forEach(o => o.selected = (o.id === id));
+        this.selected = this.objects.find(o => o.id === id);
+        if (this.selected) this.updateProps();
+        this.render();
+        this.updateObjList();
+    }
+
+    deleteObj(id) {
+        this.objects = this.objects.filter(o => o.id !== id);
+        if (this.selected?.id === id) {
+            this.selected = null;
+            document.getElementById('propSec').style.display = 'none';
+            document.getElementById('vecSection').style.display = 'none';
+            document.getElementById('rasterSection').style.display = 'none';
+        }
+        if (this.editMode) this.exitEditMode();
+        this.render();
+        this.updateObjList();
+        this.log(t('msg_object_deleted'));
+    }
+
+    updateProps() {
+        if (!this.selected) return;
+        document.getElementById('propSec').style.display = 'block';
+        this.updatePropsDisplay();
+        document.getElementById('propPwr').value = this.selected.power;
+        document.getElementById('propSpd').value = this.selected.speed;
+        document.getElementById('propPass').value = this.selected.passes;
+        document.getElementById('pwrVal').textContent = this.selected.power;
+        document.getElementById('spdVal').textContent = this.selected.speed;
+        
+        const isImage = ['image', 'text'].includes(this.selected.type) && this.selected.image;
+        document.getElementById('vecSection').style.display = isImage ? 'block' : 'none';
+        document.getElementById('rasterSection').style.display = isImage ? 'block' : 'none';
+    }
+
+    updatePropsDisplay() {
+        if (!this.selected) return;
+        document.getElementById('propX').value = this.selected.x.toFixed(1);
+        document.getElementById('propY').value = this.selected.y.toFixed(1);
+        document.getElementById('propW').value = this.selected.w.toFixed(1);
+        document.getElementById('propH').value = this.selected.h.toFixed(1);
+    }
+
+    applyProps() {
+        if (!this.selected) return;
+        this.selected.x = +document.getElementById('propX').value;
+        this.selected.y = +document.getElementById('propY').value;
+        this.selected.w = +document.getElementById('propW').value;
+        this.selected.h = +document.getElementById('propH').value;
+        this.render();
+    }
+
+    deleteSelected() { if (this.selected) this.deleteObj(this.selected.id); }
+    
+    duplicateSelected() {
+        if (!this.selected) return;
+        const copy = this.selected.clone();
+        this.objects.push(copy);
+        this.objects.forEach(o => o.selected = false);
+        copy.selected = true;
+        this.selected = copy;
+        this.updateProps();
+        this.render();
+        this.updateObjList();
+        this.log(t('msg_duplicated'));
+    }
+    
+    selectAll() { this.objects.forEach(o => o.selected = true); this.render(); this.updateObjList(); }
+    
+    clearAll() {
+        if (!confirm(t('confirm_delete_all'))) return;
+        this.objects = [];
+        this.selected = null;
+        if (this.editMode) this.exitEditMode();
+        document.getElementById('propSec').style.display = 'none';
+        document.getElementById('vecSection').style.display = 'none';
+        document.getElementById('rasterSection').style.display = 'none';
+        this.render();
+        this.updateObjList();
+    }
+    
+    zoomFit() { 
+        this.zoom = 1; 
+        this.pan = { x: RULER_SIZE + 10, y: RULER_SIZE + 10 }; 
+        this.render(); 
+    }
+
+    // ========== FILE LOADING ==========
+    loadFile(file) {
+        if (!file) return;
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const maxSize = Math.min(this.workArea.w, this.workArea.h) * 0.5;
+                    let w = img.width / 10, h = img.height / 10;
+                    if (w > maxSize || h > maxSize) { const s = maxSize / Math.max(w, h); w *= s; h *= s; }
+                    const obj = new LaserObject('image', {
+                        name: file.name.replace(/\.[^.]+$/, ''), image: img, w, h,
+                        x: (this.workArea.w - w) / 2, y: (this.workArea.h - h) / 2
+                    });
+                    this.objects.push(obj);
+                    this.objects.forEach(o => o.selected = false);
+                    obj.selected = true;
+                    this.selected = obj;
+                    this.updateProps();
+                    this.render();
+                    this.updateObjList();
+                    this.log(t('msg_loaded') + ': ' + file.name);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else if (file.name.endsWith('.svg')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const svg = new DOMParser().parseFromString(e.target.result, 'image/svg+xml');
+                const paths = [];
+                svg.querySelectorAll('path').forEach(el => {
+                    const d = el.getAttribute('d');
+                    if (d) { const pts = this.parseSVGPath(d); if (pts.length > 1) paths.push(pts); }
+                });
+                if (paths.length) {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    paths.forEach(p => p.forEach(pt => { minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y); maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y); }));
+                    const w = maxX - minX || 1, h = maxY - minY || 1;
+                    const norm = paths.map(p => p.map(pt => ({ x: (pt.x - minX) / w, y: (pt.y - minY) / h })));
+                    const obj = new LaserObject('vector', { name: file.name.replace(/\.[^.]+$/, ''), paths: norm, w: w/10, h: h/10, x: 50, y: 50 });
+                    this.objects.push(obj);
+                    obj.selected = true; this.selected = obj;
+                    this.updateProps(); this.render(); this.updateObjList();
+                    this.log(t('msg_loaded') + ': SVG');
+                }
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    parseSVGPath(d) {
+        const pts = [];
+        const cmds = d.match(/[MLHVZmlhvz][^MLHVZmlhvz]*/gi) || [];
+        let cx = 0, cy = 0, sx = 0, sy = 0;
+        cmds.forEach(cmd => {
+            const t = cmd[0], args = cmd.slice(1).trim().split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
+            if (t === 'M') { cx = args[0]; cy = args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy}); }
+            else if (t === 'm') { cx += args[0]; cy += args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy}); }
+            else if (t === 'L') { for (let i = 0; i < args.length; i += 2) { cx = args[i]; cy = args[i+1]; pts.push({x:cx,y:cy}); } }
+            else if (t === 'l') { for (let i = 0; i < args.length; i += 2) { cx += args[i]; cy += args[i+1]; pts.push({x:cx,y:cy}); } }
+            else if (t === 'H') { cx = args[0]; pts.push({x:cx,y:cy}); }
+            else if (t === 'h') { cx += args[0]; pts.push({x:cx,y:cy}); }
+            else if (t === 'V') { cy = args[0]; pts.push({x:cx,y:cy}); }
+            else if (t === 'v') { cy += args[0]; pts.push({x:cx,y:cy}); }
+            else if (t === 'Z' || t === 'z') { pts.push({x:sx,y:sy}); cx = sx; cy = sy; }
+        });
+        return pts;
+    }
+
+    createText() {
+        const text = document.getElementById('textContent').value.trim();
+        if (!text) return;
+        const font = document.getElementById('textFont').value;
+        const size = +document.getElementById('textSize').value;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.font = `${size * 10}px ${font}`;
+        const maxW = Math.max(...text.split('\n').map(l => ctx.measureText(l).width)) / 10;
+        const h = size * text.split('\n').length * 1.2;
+        canvas.width = Math.ceil(maxW * 10) + 20;
+        canvas.height = Math.ceil(h * 10) + 20;
+        ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'black'; ctx.font = `${size * 10}px ${font}`; ctx.textBaseline = 'top';
+        text.split('\n').forEach((line, i) => ctx.fillText(line, 10, 10 + i * size * 10 * 1.2));
+        const img = new Image();
+        img.onload = () => {
+            const obj = new LaserObject('text', { name: 'Text_' + text.substring(0,8), image: img, w: maxW, h, x: (this.workArea.w - maxW)/2, y: (this.workArea.h - h)/2 });
+            this.objects.push(obj);
+            this.objects.forEach(o => o.selected = false);
+            obj.selected = true; this.selected = obj;
+            this.updateProps(); this.render(); this.updateObjList();
+            closeModal('modalText');
+            document.getElementById('textContent').value = '';
+            this.log(t('msg_text_added'));
+        };
+        img.src = canvas.toDataURL();
+    }
+
+    // ========== VECTORIZATION ==========
+    async vectorize() {
+        if (!this.selected?.image) { this.log(t('msg_select_image'), 'err'); return; }
+        document.getElementById('loading').classList.add('show');
+        document.getElementById('loadingText').textContent = t('msg_vectorizing');
+        await this.delay(50);
+        try {
+            const img = this.selected.image;
+            const threshold = +document.getElementById('vecTreshold').value;
+            const margin = +document.getElementById('borderMargin').value;
+            const removeBorders = document.getElementById('removeBorders').checked;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const g = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+                d[i] = d[i+1] = d[i+2] = g < threshold ? 0 : 255;
+                d[i+3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            
+            const opts = ImageTracer.optionpresets.default;
+            opts.pathomit = 8;
+            const trace = ImageTracer.imagedataToTracedata(imgData, opts);
+            
+            let paths = [];
+            trace.layers.forEach(layer => layer.forEach(pathObj => {
+                if (pathObj.segments?.length > 2) {
+                    const p = [];
+                    pathObj.segments.forEach(s => {
+                        if (s.type === 'L' || s.type === 'M') p.push({x: s.x1, y: s.y1});
+                        else if (s.type === 'Q') {
+                            for (let t = 0; t <= 1; t += 0.25) {
+                                p.push({ x: (1-t)**2*s.x1 + 2*(1-t)*t*s.x2 + t*t*s.x3, y: (1-t)**2*s.y1 + 2*(1-t)*t*s.y2 + t*t*s.y3 });
+                            }
+                        }
+                    });
+                    if (p.length > 3) { p.push({x: p[0].x, y: p[0].y}); paths.push(p); }
+                }
+            }));
+            
+            if (removeBorders && margin > 0) {
+                paths = paths.filter(p => {
+                    let tL=0, tR=0, tT=0, tB=0;
+                    p.forEach(pt => { if (pt.x <= margin) tL++; if (pt.x >= canvas.width - margin) tR++; if (pt.y <= margin) tT++; if (pt.y >= canvas.height - margin) tB++; });
+                    const ratio = (tL + tR + tT + tB) / p.length;
+                    return !(tL && tR && tT && tB && ratio > 0.4) && ratio < 0.7;
+                });
+            }
+            
+            paths = paths.filter(p => this.pathLength(p) > 10);
+            
+            if (!paths.length) { this.log(t('msg_no_contours'), 'err'); document.getElementById('loading').classList.remove('show'); return; }
+            
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            paths.forEach(p => p.forEach(pt => { minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y); maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y); }));
+            const w = maxX - minX || 1, h = maxY - minY || 1;
+            const norm = paths.map(p => p.map(pt => ({ x: (pt.x - minX) / w, y: (pt.y - minY) / h })));
+            
+            const vecObj = new LaserObject('vector', { name: this.selected.name + '_vec', paths: norm, x: this.selected.x, y: this.selected.y, w: this.selected.w, h: this.selected.h, power: this.selected.power, speed: this.selected.speed, passes: this.selected.passes });
+            this.objects.push(vecObj);
+            this.objects.forEach(o => o.selected = false);
+            vecObj.selected = true; this.selected = vecObj;
+            this.updateProps(); this.render(); this.updateObjList();
+            this.log(t('msg_vectorized').replace('{n}', paths.length));
+        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
+        document.getElementById('loading').classList.remove('show');
+    }
+
+    pathLength(path) {
+        let len = 0;
+        for (let i = 1; i < path.length; i++) {
+            len += Math.sqrt((path[i].x - path[i-1].x)**2 + (path[i].y - path[i-1].y)**2);
+        }
+        return len;
+    }
+
+    // ========== G-CODE ==========
+    generateVectorGCode() {
+        let gcode = ['; LaserCAM v1.0 - Vector', 'G21', 'G90', 'M5', ''], dist = 0;
+        this.objects.forEach(obj => {
+            if (obj.type !== 'vector' || !obj.paths.length) return;
+            const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; ${obj.name}`);
+            for (let pass = 0; pass < obj.passes; pass++) {
+                obj.paths.forEach(path => {
+                    if (path.length < 2) return;
+                    let lx = obj.x + path[0].x * obj.w, ly = obj.y + path[0].y * obj.h;
+                    gcode.push(`G0 X${lx.toFixed(3)} Y${ly.toFixed(3)}`);
+                    gcode.push(`M3 S${sVal}`);
+                    for (let i = 1; i < path.length; i++) {
+                        const px = obj.x + path[i].x * obj.w, py = obj.y + path[i].y * obj.h;
+                        gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} F${obj.speed}`);
+                        dist += Math.sqrt((px-lx)**2 + (py-ly)**2);
+                        lx = px; ly = py;
+                    }
+                    gcode.push('M5');
+                });
+            }
+        });
+        gcode.push('', 'M5', `G0 X${this.homePosition.x} Y${this.homePosition.y}`, 'M2');
+        return { code: gcode.join('\n'), lines: gcode.length, dist };
+    }
+
+    generateRasterGCode() {
+        let gcode = ['; LaserCAM v1.0 - Raster', `; Res: ${this.rasterRes} l/mm`, 'G21', 'G90', 'M5', ''], dist = 0;
+        const res = this.rasterRes;
+        
+        this.objects.forEach(obj => {
+            if (!['image', 'text'].includes(obj.type) || !obj.image) return;
+            const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; ${obj.name}`);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(obj.w * res);
+            canvas.height = Math.ceil(obj.h * res);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            const lineSpacing = 1 / res;
+
+            for (let row = 0; row < canvas.height; row++) {
+                const y = obj.y + row * lineSpacing;
+                const reverse = this.rasterBidir && row % 2 === 1;
+                let segments = [], inSeg = false, segStart = 0;
+                
+                const start = reverse ? canvas.width - 1 : 0;
+                const end = reverse ? -1 : canvas.width;
+                const step = reverse ? -1 : 1;
+
+                for (let col = start; col !== end; col += step) {
+                    const idx = (row * canvas.width + col) * 4;
+                    const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
+                    const black = gray < 128;
+                    if (black && !inSeg) { segStart = col; inSeg = true; }
+                    else if (!black && inSeg) { segments.push({ s: segStart, e: col - step }); inSeg = false; }
+                }
+                if (inSeg) segments.push({ s: segStart, e: reverse ? 0 : canvas.width - 1 });
+
+                segments.forEach(seg => {
+                    const x1 = obj.x + Math.min(seg.s, seg.e) * lineSpacing;
+                    const x2 = obj.x + Math.max(seg.s, seg.e) * lineSpacing;
+                    gcode.push(`G0 X${x1.toFixed(3)} Y${y.toFixed(3)}`);
+                    gcode.push(`M3 S${sVal}`);
+                    gcode.push(`G1 X${x2.toFixed(3)} F${obj.speed}`);
+                    gcode.push('M5');
+                    dist += Math.abs(x2 - x1);
+                });
+            }
+        });
+        
+        gcode.push('', 'M5', `G0 X${this.homePosition.x} Y${this.homePosition.y}`, 'M2');
+        return { code: gcode.join('\n'), lines: gcode.length, dist };
+    }
+
+    showGCode(mode = 'vector') {
+        if (!this.objects.length) { this.log(t('msg_no_objects'), 'err'); return; }
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === mode));
+        
+        const result = mode === 'raster' ? this.generateRasterGCode() : this.generateVectorGCode();
+        document.getElementById('gcodeOutput').value = result.code;
+        document.getElementById('gcodeLines').textContent = result.lines;
+        document.getElementById('gcodeDist').textContent = result.dist.toFixed(0);
+        document.getElementById('gcodeTime').textContent = (result.dist / 1000).toFixed(1);
+        
+        openModal('modalGcode');
+        this.log(t('msg_gcode_generated').replace('{mode}', mode).replace('{n}', result.lines));
+
+        document.getElementById('btnCopyGcode').onclick = () => { navigator.clipboard.writeText(result.code); this.log(t('msg_copied')); };
+        document.getElementById('btnDownloadGcode').onclick = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([result.code], { type: 'text/plain' }));
+            a.download = `laser_${mode}_${Date.now()}.gcode`;
+            a.click();
+            this.log(t('msg_downloaded'));
+        };
+        document.getElementById('btnSendGcode').onclick = () => { closeModal('modalGcode'); this.startJobWithCode(result.code); };
+    }
+
+    // ========== SIMULATION ==========
+    startSimulation() {
+        const simPoints = [];
+        let hasVector = false, hasRaster = false;
+        
+        this.objects.forEach(obj => {
+            if (obj.type === 'vector' && obj.paths.length) {
+                hasVector = true;
+                for (let pass = 0; pass < obj.passes; pass++) {
+                    obj.paths.forEach(path => {
+                        if (path.length < 2) return;
+                        simPoints.push({ x: obj.x + path[0].x * obj.w, y: obj.y + path[0].y * obj.h, laserOn: false });
+                        for (let i = 1; i < path.length; i++) {
+                            simPoints.push({ x: obj.x + path[i].x * obj.w, y: obj.y + path[i].y * obj.h, laserOn: true });
+                        }
+                    });
+                }
+            }
+        });
+        
+        this.objects.forEach(obj => {
+            if (['image', 'text'].includes(obj.type) && obj.image) {
+                hasRaster = true;
+                const res = this.rasterRes;
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.ceil(obj.w * res);
+                canvas.height = Math.ceil(obj.h * res);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imgData.data;
+                const lineSpacing = 1 / res;
+
+                for (let row = 0; row < canvas.height; row += 2) {
+                    const y = obj.y + row * lineSpacing;
+                    const reverse = this.rasterBidir && row % 2 === 1;
+                    let inBlack = false;
+                    
+                    const start = reverse ? canvas.width - 1 : 0;
+                    const end = reverse ? -1 : canvas.width;
+                    const step = reverse ? -1 : 1;
+
+                    for (let col = start; col !== end; col += step) {
+                        const idx = (row * canvas.width + col) * 4;
+                        const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
+                        const black = gray < 128;
+                        
+                        if (black && !inBlack) {
+                            inBlack = true;
+                            simPoints.push({ x: obj.x + col * lineSpacing, y, laserOn: false });
+                        } else if (!black && inBlack) {
+                            simPoints.push({ x: obj.x + (col - step) * lineSpacing, y, laserOn: true });
+                            inBlack = false;
+                        }
+                    }
+                    if (inBlack) {
+                        simPoints.push({ x: obj.x + (reverse ? 0 : canvas.width - 1) * lineSpacing, y, laserOn: true });
+                    }
+                }
+            }
+        });
+        
+        if (!simPoints.length) { this.log(t('msg_nothing_to_simulate'), 'err'); return; }
+        
+        this.simMode = hasVector && !hasRaster ? 'Vector' : !hasVector && hasRaster ? 'Raster' : t('sim_mixed');
+        document.getElementById('simMode').textContent = this.simMode;
+        
+        this.simData = { points: simPoints, currentPoint: simPoints[0], laserOn: false, progress: 0 };
+        this.simCurrentIndex = 0;
+        this.simulating = true;
+        this.simPaused = false;
+        this.simStartTime = Date.now();
+        
+        document.getElementById('simOverlay').classList.add('show');
+        document.getElementById('btnSimPause').textContent = '⏸';
+        this.log(t('msg_simulation_started') + ' ' + this.simMode);
+        this.animateSimulation();
+    }
+
+    animateSimulation() {
+        if (!this.simulating) return;
+        if (this.simPaused) { this.simAnimationId = requestAnimationFrame(() => this.animateSimulation()); return; }
+        
+        const pts = this.simData.points;
+        if (this.simCurrentIndex >= pts.length - 1) {
+            this.simulating = false;
+            document.getElementById('simOverlay').classList.remove('show');
+            this.log(t('msg_simulation_complete'));
+            this.render();
+            return;
+        }
+        
+        const idx = Math.floor(this.simCurrentIndex);
+        const t = this.simCurrentIndex - idx;
+        const p1 = pts[idx], p2 = pts[Math.min(idx + 1, pts.length - 1)];
+        
+        this.simData.currentPoint = { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
+        this.simData.laserOn = p2.laserOn;
+        this.simData.progress = (this.simCurrentIndex / (pts.length - 1)) * 100;
+        
+        document.getElementById('simPos').textContent = `${this.simData.currentPoint.x.toFixed(1)}, ${this.simData.currentPoint.y.toFixed(1)}`;
+        document.getElementById('simProgress').textContent = `${this.simData.progress.toFixed(0)}%`;
+        document.getElementById('simProgressBar').style.width = `${this.simData.progress}%`;
+        document.getElementById('simTime').textContent = this.formatTime((Date.now() - this.simStartTime) / 1000);
+        
+        this.simCurrentIndex += 0.2 * this.simSpeed;
+        this.render();
+        this.simAnimationId = requestAnimationFrame(() => this.animateSimulation());
+    }
+
+    stopSimulation() {
+        this.simulating = false;
+        if (this.simAnimationId) cancelAnimationFrame(this.simAnimationId);
+        document.getElementById('simOverlay').classList.remove('show');
+        this.simData = null;
+        this.render();
+        this.log(t('msg_simulation_stopped'));
+    }
+
+    toggleSimPause() {
+        if (!this.simulating) return;
+        this.simPaused = !this.simPaused;
+        document.getElementById('btnSimPause').textContent = this.simPaused ? '▶' : '⏸';
+    }
+
+    formatTime(sec) { return `${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`; }
+
+    // ========== SERIAL ==========
+    async toggleConnection() {
+        if (this.connected) await this.disconnect();
+        else await this.connect();
+    }
+
+    async connect() {
+        try {
+            if (!('serial' in navigator)) { alert(t('msg_use_chrome')); return; }
+            this.port = await navigator.serial.requestPort();
+            await this.port.open({ baudRate: +document.getElementById('baudRate').value });
+            this.connected = true;
+            document.getElementById('status').classList.add('on');
+            document.getElementById('statusTxt').textContent = t('status_connected');
+            document.getElementById('btnConn').textContent = t('btn_disconnect');
+            this.log(t('msg_connected'));
+            this.startReading();
+            await this.delay(1000);
+            await this.send('$X');
+        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
+    }
+
+    async disconnect() {
+        this.jobRunning = false;
+        await this.send('M5');
+        if (this.reader) { try { await this.reader.cancel(); } catch(e) {} this.reader = null; }
+        if (this.port) { try { await this.port.close(); } catch(e) {} this.port = null; }
+        this.connected = false;
+        document.getElementById('status').classList.remove('on');
+        document.getElementById('statusTxt').textContent = t('status_disconnected');
+        document.getElementById('btnConn').textContent = t('btn_connect');
+        this.log(t('msg_disconnected'));
+    }
+
+    async startReading() {
+        while (this.port?.readable) {
+            try {
+                this.reader = this.port.readable.getReader();
+                let buffer = '';
+                while (true) {
+                    const { value, done } = await this.reader.read();
+                    if (done) break;
+                    buffer += new TextDecoder().decode(value);
+                    const lines = buffer.split('\n'); buffer = lines.pop();
+                    lines.forEach(l => { l = l.trim(); if (l) this.handleResponse(l); });
+                }
+            } catch (err) { if (err.name !== 'CancelledError') this.log(t('msg_error') + ': ' + err.message, 'err'); }
+            finally { this.reader?.releaseLock(); }
+        }
+    }
+
+    handleResponse(line) {
+        this.log('< ' + line, 'recv');
+        const m = line.match(/[MW]Pos:([-\d.]+),([-\d.]+)/);
+        if (m) { this.currentPosition = { x: parseFloat(m[1]), y: parseFloat(m[2]) }; }
+    }
+
+    async send(cmd) {
+        if (!this.connected) return false;
+        try {
+            const w = this.port.writable.getWriter();
+            await w.write(new TextEncoder().encode(cmd + '\n'));
+            w.releaseLock();
+            if (cmd.trim()) this.log('> ' + cmd, 'send');
+            return true;
+        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); return false; }
+    }
+
+    sendManual() {
+        const input = document.getElementById('consoleInput');
+        if (input.value.trim()) { this.send(input.value.trim()); input.value = ''; }
+    }
+
+    async emergencyStop() {
+        this.log(t('msg_emergency_stop'), 'err');
+        this.jobRunning = false;
+        this.stopSimulation();
+        if (this.port?.writable) {
+            const w = this.port.writable.getWriter();
+            await w.write(new TextEncoder().encode('\x18'));
+            w.releaseLock();
+        }
+        await this.send('M5');
+        await this.send('$X');
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('progBar').style.width = '0%';
+        document.getElementById('footProg').textContent = '0%';
+    }
+
+    async startJob() { await this.startJobWithCode(this.generateVectorGCode().code); }
+
+    async startJobWithCode(code) {
+        if (!this.connected) { this.log(t('msg_not_connected'), 'err'); return; }
+        this.jobQueue = code.split('\n').filter(l => l.trim() && !l.startsWith(';'));
+        this.jobRunning = true;
+        this.jobPaused = false;
+        document.getElementById('btnStart').disabled = true;
+        this.log(t('msg_starting'));
+
+        for (let i = 0; i < this.jobQueue.length && this.jobRunning; i++) {
+            while (this.jobPaused) await this.delay(100);
+            await this.send(this.jobQueue[i]);
+            await this.delay(15);
+            const p = ((i + 1) / this.jobQueue.length) * 100;
+            document.getElementById('progBar').style.width = p + '%';
+            document.getElementById('footProg').textContent = Math.round(p) + '%';
+        }
+
+        this.jobRunning = false;
+        document.getElementById('btnStart').disabled = false;
+        this.log(t('msg_complete'));
+    }
+
+    togglePause() {
+        if (!this.jobRunning) return;
+        this.jobPaused = !this.jobPaused;
+        this.send(this.jobPaused ? '!' : '~');
+        document.getElementById('btnPause').textContent = this.jobPaused ? t('btn_resume') : t('btn_pause');
+        this.log(this.jobPaused ? t('msg_paused') : t('msg_resumed'));
+    }
+
+    jog(dir) {
+        if (!this.connected) return;
+        if (dir === 'H') { this.goHome(); return; }
+        const cmds = { 'X+': `$J=G91 X${this.jogStep} F3000`, 'X-': `$J=G91 X-${this.jogStep} F3000`, 'Y+': `$J=G91 Y${this.jogStep} F3000`, 'Y-': `$J=G91 Y-${this.jogStep} F3000` };
+        if (cmds[dir]) this.send(cmds[dir]);
+    }
+
+    async frameJob() {
+        if (!this.connected) { this.log(t('msg_not_connected'), 'err'); return; }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        this.objects.forEach(o => { minX = Math.min(minX, o.x); minY = Math.min(minY, o.y); maxX = Math.max(maxX, o.x + o.w); maxY = Math.max(maxY, o.y + o.h); });
+        if (minX === Infinity) return;
+        this.log(t('msg_framing'));
+        await this.send('M3 S5');
+        await this.send(`G0 X${minX.toFixed(1)} Y${minY.toFixed(1)} F3000`);
+        await this.delay(300);
+        await this.send(`G0 X${maxX.toFixed(1)} Y${minY.toFixed(1)}`);
+        await this.delay(300);
+        await this.send(`G0 X${maxX.toFixed(1)} Y${maxY.toFixed(1)}`);
+        await this.delay(300);
+        await this.send(`G0 X${minX.toFixed(1)} Y${maxY.toFixed(1)}`);
+        await this.delay(300);
+        await this.send(`G0 X${minX.toFixed(1)} Y${minY.toFixed(1)}`);
+        await this.send('M5');
+    }
+
+    // ========== HOME ==========
+    loadHomePosition() { try { return JSON.parse(localStorage.getItem('laserHome')) || { x: 0, y: 0 }; } catch { return { x: 0, y: 0 }; } }
+    applyHomePosition() { document.getElementById('homeX').value = this.homePosition.x; document.getElementById('homeY').value = this.homePosition.y; }
+    saveHomePosition() {
+        this.homePosition = { x: +document.getElementById('homeX').value, y: +document.getElementById('homeY').value };
+        localStorage.setItem('laserHome', JSON.stringify(this.homePosition));
+        this.log(t('msg_home_set') + `: X${this.homePosition.x} Y${this.homePosition.y}`);
+        this.render();
+    }
+    async goHome() { if (this.connected) await this.send(`G0 X${this.homePosition.x} Y${this.homePosition.y} F3000`); }
+
+    // ========== MACHINE & PRESETS ==========
+    loadMachine() { try { return JSON.parse(localStorage.getItem('laserMachine')) || { maxX: 300, maxY: 300 }; } catch { return { maxX: 300, maxY: 300 }; } }
+    saveMachine() {
+        this.machine = { maxX: +document.getElementById('machX').value, maxY: +document.getElementById('machY').value };
+        localStorage.setItem('laserMachine', JSON.stringify(this.machine));
+        this.applyMachineProfile();
+        this.log(t('msg_profile_saved'));
+    }
+    applyMachineProfile() {
+        document.getElementById('machX').value = this.machine.maxX;
+        document.getElementById('machY').value = this.machine.maxY;
+        this.workArea = { w: this.machine.maxX, h: this.machine.maxY };
+        this.render();
+    }
+
+    loadPresets() { try { return JSON.parse(localStorage.getItem('laserPresets')) || this.defaultPresets(); } catch { return this.defaultPresets(); } }
+    defaultPresets() { return { wood: { name: 'Wood', power: 70, speed: 1500 }, acrylic: { name: 'Acrylic', power: 100, speed: 400 }, paper: { name: 'Paper', power: 25, speed: 3000 } }; }
+    renderPresets() {
+        document.getElementById('presetGrid').innerHTML = Object.entries(this.presets).map(([id, p]) => `
+            <div class="preset-item" onclick="app.applyPreset('${id}')">
+                <strong>${p.name}</strong><br><small>${p.power}%/${p.speed}</small>
+                ${!p.builtin ? `<button class="preset-del" onclick="event.stopPropagation(); app.deletePreset('${id}')">×</button>` : ''}
+            </div>
+        `).join('');
+    }
+    applyPreset(id) {
+        const p = this.presets[id];
+        if (!p) return;
+        (this.selected ? [this.selected] : this.objects).forEach(o => { o.power = p.power; o.speed = p.speed; });
+        if (this.selected) this.updateProps();
+        this.log(t('msg_preset_applied') + ': ' + p.name);
+    }
+    savePreset() {
+        const name = document.getElementById('presetName').value.trim();
+        if (!name) return;
+        this.presets['c_' + Date.now()] = { name, power: +document.getElementById('presetPwr').value, speed: +document.getElementById('presetSpd').value };
+        localStorage.setItem('laserPresets', JSON.stringify(this.presets));
+        this.renderPresets();
+        closeModal('modalPreset');
+        document.getElementById('presetName').value = '';
+        this.log(t('msg_preset_saved'));
+    }
+    deletePreset(id) { if (this.presets[id]) { delete this.presets[id]; localStorage.setItem('laserPresets', JSON.stringify(this.presets)); this.renderPresets(); } }
+
+    // ========== PROJECT ==========
+    saveProject() {
+        const project = { workArea: this.workArea, homePosition: this.homePosition, objects: this.objects.map(obj => {
+            const d = { ...obj }; delete d.selected; delete d.selectedPathIndex;
+            if (obj.image) { const c = document.createElement('canvas'); c.width = obj.image.width; c.height = obj.image.height; c.getContext('2d').drawImage(obj.image, 0, 0); d.imageData = c.toDataURL(); delete d.image; }
+            return d;
+        }) };
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(project)], { type: 'application/json' }));
+        a.download = 'project.lcp';
+        a.click();
+        this.log(t('msg_project_saved'));
+    }
+
+    loadProject(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                const proj = JSON.parse(e.target.result);
+                this.objects = []; this.selected = null;
+                if (proj.workArea) { this.workArea = proj.workArea; this.machine = { maxX: proj.workArea.w, maxY: proj.workArea.h }; this.applyMachineProfile(); }
+                if (proj.homePosition) { this.homePosition = proj.homePosition; this.applyHomePosition(); }
+                proj.objects?.forEach(data => {
+                    const obj = new LaserObject(data.type, data);
+                    Object.assign(obj, data);
+                    if (data.imageData) { const img = new Image(); img.onload = () => { obj.image = img; delete obj.imageData; this.render(); }; img.src = data.imageData; }
+                    this.objects.push(obj);
+                });
+                this.render(); this.updateObjList();
+                this.log(t('msg_project_loaded'));
+            } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
+        };
+        reader.readAsText(file);
+    }
+
+    // ========== UTILS ==========
+    log(msg, type = 'info') {
+        const log = document.getElementById('consoleLog');
+        const line = document.createElement('div');
+        line.className = 'console-line ' + type;
+        line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+        document.getElementById('footStatus').textContent = msg;
+    }
+
+    delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+}
+
+// ========== MODAL ==========
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ========== INIT ==========
+let app;
+window.addEventListener('DOMContentLoaded', () => {
+    initLanguageSelector();
+    app = new LaserCAM();
+    applyTranslations();
+    console.log('LaserCAM Pro v6.5');
+});
+</script>
+</body>
+</html>
