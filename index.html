@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LaserCAM 1.0</title>
+<title>LaserCAM Pro 1.0 - Relative Mode</title>
 <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
 <style>
 :root {
@@ -51,7 +51,7 @@ input[type="checkbox"] { width: auto; }
 
 main { position: relative; background: #000; overflow: hidden; }
 canvas { position: absolute; top: 0; left: 0; }
-.toolbar { position: absolute; top: 10px; left: 40px; background: rgba(0,0,0,0.9); padding: 6px; border-radius: 6px; display: flex; gap: 4px; backdrop-filter: blur(10px); flex-wrap: wrap; max-width: 400px; z-index: 10; border: 1px solid var(--border); }
+.toolbar { position: absolute; top: 10px; left: 40px; background: rgba(0,0,0,0.9); padding: 6px; border-radius: 6px; display: flex; gap: 4px; backdrop-filter: blur(10px); flex-wrap: wrap; max-width: 500px; z-index: 10; border: 1px solid var(--border); }
 .canvas-info { position: absolute; bottom: 10px; left: 40px; background: rgba(0,0,0,0.8); padding: 6px 10px; border-radius: 6px; font-size: 11px; backdrop-filter: blur(10px); z-index: 10; }
 
 .edit-mode-bar { position: absolute; top: 55px; left: 40px; background: var(--warn); color: #000; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; display: none; z-index: 20; }
@@ -110,6 +110,7 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
 .console-line.send { color: var(--success); }
 .console-line.recv { color: #64b5f6; }
 .console-line.err { color: var(--danger); }
+.console-line.warn { color: var(--warn); }
 .console-input { display: flex; gap: 4px; padding: 6px; background: var(--input); }
 
 .loading { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 2000; flex-direction: column; gap: 12px; }
@@ -124,12 +125,38 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
 .tab-btn:first-child { border-radius: 4px 0 0 4px; }
 .tab-btn:last-child { border-radius: 0 4px 4px 0; }
 .tab-btn.active { background: var(--accent); color: #000; font-weight: bold; }
+
+.transform-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; margin-top: 6px; }
+
+.home-pos-display { 
+    background: var(--input); 
+    padding: 6px 8px; 
+    border-radius: 4px; 
+    font-size: 10px; 
+    margin-top: 6px;
+    border: 1px solid var(--success);
+}
+.home-pos-display strong { color: var(--success); }
+
+/* ⭐ Badge modalità relativa */
+.relative-mode-badge {
+    background: var(--warn);
+    color: #000;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: bold;
+    margin-left: 8px;
+}
 </style>
 </head>
 <body>
 <div class="app">
     <header>
-        <div class="logo">⚡ LaserCAM Pro v1.0</div>
+        <div class="logo">
+            ⚡ LaserCAM Pro v1.0
+            <span class="relative-mode-badge">RELATIVE MODE</span>
+        </div>
         <div class="hdr-ctrl">
             <div class="lang-selector" id="langSelector"></div>
             <span class="status" id="status"></span>
@@ -155,20 +182,29 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
                 <div class="form-g"><label data-i18n="lbl_x_max"></label><input type="number" id="machX" value="300"></div>
                 <div class="form-g"><label data-i18n="lbl_y_max"></label><input type="number" id="machY" value="300"></div>
             </div>
+            <div class="form-g">
+                <label><input type="checkbox" id="mirrorX"> <span data-i18n="lbl_mirror_x"></span></label>
+            </div>
+            <div class="form-g">
+                <label><input type="checkbox" id="mirrorY" checked> <span data-i18n="lbl_mirror_y"></span></label>
+            </div>
             <button class="btn btn-p btn-sm btn-block" id="btnSaveMach" data-i18n="btn_save_profile"></button>
         </div>
 
         <div class="sec">
-            <div class="sec-title" data-i18n="sec_home"></div>
-            <div class="row">
-                <div class="form-g"><label>X</label><input type="number" id="homeX" value="0" step="0.1"></div>
-                <div class="form-g"><label>Y</label><input type="number" id="homeY" value="0" step="0.1"></div>
+            <div class="sec-title">🎯 HOME (Center 0,0)</div>
+            <div class="home-pos-display" id="currentPosDisplay">
+                <div><strong>Current:</strong> <span id="currentPosText">X0.000 Y0.000</span></div>
             </div>
-            <div class="row">
-                <button class="btn btn-sm" id="btnSetHome" data-i18n="btn_set"></button>
-                <button class="btn btn-s btn-sm" id="btnGoHome" data-i18n="btn_go"></button>
+            <p style="font-size:9px; color:var(--dim); margin-top:5px">
+                Move laser manually to desired center position, then click "Set Home"
+            </p>
+            <div class="row" style="margin-top:6px">
+                <button class="btn btn-s btn-sm btn-block" id="btnSetHomeCurrent">📍 Set Home (G92)</button>
             </div>
-            <p style="font-size:9px; color:var(--dim); margin-top:5px" data-i18n="home_tip"></p>
+            <div class="row" style="margin-top:4px">
+                <button class="btn btn-sm" id="btnGoHome" data-i18n="btn_go"></button>
+            </div>
         </div>
 
         <div class="sec">
@@ -176,6 +212,7 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
             <input type="file" id="fileInput" accept="image/*,.svg" style="display:none">
             <button class="btn btn-p btn-block btn-sm" onclick="fileInput.click()" data-i18n="btn_import_image"></button>
             <button class="btn btn-block btn-sm" id="btnAddText" style="margin-top:4px" data-i18n="btn_add_text"></button>
+            <button class="btn btn-block btn-sm" id="btnAddVectorText" style="margin-top:4px" data-i18n="btn_add_vector_text"></button>
         </div>
 
         <div class="sec" id="vecSection" style="display:none">
@@ -227,6 +264,10 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
             <button class="btn btn-sm" id="btnFit" data-i18n-title="tip_fit">📐</button>
             <button class="btn btn-sm" id="btnDel" data-i18n-title="tip_delete">🗑️</button>
             <button class="btn btn-sm" id="btnDup" data-i18n-title="tip_duplicate">📋</button>
+            <button class="btn btn-sm" id="btnRotateCW" data-i18n-title="tip_rotate_cw">↻</button>
+            <button class="btn btn-sm" id="btnRotateCCW" data-i18n-title="tip_rotate_ccw">↺</button>
+            <button class="btn btn-sm" id="btnFlipH" data-i18n-title="tip_flip_h">⇄</button>
+            <button class="btn btn-sm" id="btnFlipV" data-i18n-title="tip_flip_v">⇅</button>
             <button class="btn btn-sm" id="btnGcode" data-i18n-title="tip_gcode">📄</button>
             <button class="btn btn-sm btn-w" id="btnSimulate" data-i18n-title="tip_simulate">🎬</button>
             <button class="btn btn-sm" id="btnFrameJob" data-i18n-title="tip_frame">🔲</button>
@@ -287,6 +328,16 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
                 <label><input type="checkbox" id="lockRatio" checked> <span data-i18n="lbl_lock_ratio"></span></label>
             </div>
             <div class="form-g">
+                <label><span data-i18n="lbl_rotation"></span>: <span id="rotVal">0</span>°</label>
+                <input type="range" id="propRot" min="0" max="360" value="0">
+            </div>
+            <div class="transform-group">
+                <button class="btn btn-sm" id="btnRot90" title="90°">90°</button>
+                <button class="btn btn-sm" id="btnRot180" title="180°">180°</button>
+                <button class="btn btn-sm" id="btnRot270" title="270°">270°</button>
+                <button class="btn btn-sm" id="btnRot0" title="0°">0°</button>
+            </div>
+            <div class="form-g">
                 <label><span data-i18n="lbl_power"></span>: <span id="pwrVal">80</span>%</label>
                 <input type="range" id="propPwr" min="1" max="100" value="80">
             </div>
@@ -331,14 +382,17 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
 
 <!-- Context Menu -->
 <div class="context-menu" id="contextMenu">
-    <div class="context-menu-item" data-action="setHomeHere" data-i18n="ctx_set_home_here"></div>
-    <div class="context-menu-separator"></div>
     <div class="context-menu-item" data-action="select" data-i18n="ctx_select"></div>
     <div class="context-menu-item" data-action="selectAll" data-i18n="ctx_select_all"></div>
     <div class="context-menu-separator"></div>
     <div class="context-menu-item" data-action="duplicate" data-i18n="ctx_duplicate"></div>
     <div class="context-menu-item" data-action="delete" data-i18n="ctx_delete"></div>
     <div class="context-menu-item" data-action="center" data-i18n="ctx_center"></div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="rotateCW" data-i18n="ctx_rotate_cw"></div>
+    <div class="context-menu-item" data-action="rotateCCW" data-i18n="ctx_rotate_ccw"></div>
+    <div class="context-menu-item" data-action="flipH" data-i18n="ctx_flip_h"></div>
+    <div class="context-menu-item" data-action="flipV" data-i18n="ctx_flip_v"></div>
     <div class="context-menu-separator"></div>
     <div class="context-menu-item" data-action="vectorize" data-i18n="ctx_vectorize"></div>
     <div class="context-menu-item" data-action="rasterGcode" data-i18n="ctx_raster_gcode"></div>
@@ -399,6 +453,27 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
     </div>
 </div>
 
+<div class="modal" id="modalVectorText">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 data-i18n="modal_add_vector_text"></h3>
+            <button class="modal-close" onclick="closeModal('modalVectorText')">&times;</button>
+        </div>
+        <div class="form-g"><label data-i18n="lbl_text"></label><input type="text" id="vectorTextContent" maxlength="50"></div>
+        <div class="row">
+            <div class="form-g"><label>Font</label><select id="vectorTextFont">
+                <option>Arial</option><option>Helvetica</option><option>Times New Roman</option>
+                <option>Georgia</option><option>Verdana</option><option>Impact</option><option>Courier New</option>
+            </select></div>
+            <div class="form-g"><label data-i18n="lbl_size"></label><input type="number" id="vectorTextSize" value="20" min="5" max="200"></div>
+        </div>
+        <div class="form-g">
+            <label><input type="checkbox" id="vectorTextBold"> <span data-i18n="lbl_bold"></span></label>
+        </div>
+        <button class="btn btn-p btn-block" id="btnCreateVectorText" style="margin-top:8px" data-i18n="btn_create"></button>
+    </div>
+</div>
+
 <div class="modal" id="modalGcode">
     <div class="modal-content wide">
         <div class="modal-header">
@@ -425,9 +500,7 @@ footer { grid-column: 1/-1; background: var(--panel); display: flex; align-items
 
 <input type="file" id="projInput" accept=".lcp" style="display:none">
 
-<!-- LANGUAGE FILE - Load this externally in production -->
 <script src="lang.js"></script>
-
 <script>
 // ============================================
 // CONSTANTS
@@ -477,17 +550,20 @@ function initLanguageSelector() {
 }
 
 // ============================================
-// LaserObject Class
+// LaserObject Class - COORDINATE RELATIVE AL CENTRO
 // ============================================
 class LaserObject {
     constructor(type, data = {}) {
         this.id = 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         this.type = type;
         this.name = data.name || type + '_' + this.id.substr(-4);
-        this.x = data.x || 10;
-        this.y = data.y || 10;
+        this.x = data.x || 0;  // ⭐ Può essere negativo (centro = 0,0)
+        this.y = data.y || 0;
         this.w = data.w || 50;
         this.h = data.h || 50;
+        this.rotation = data.rotation || 0;
+        this.flipH = data.flipH || false;
+        this.flipV = data.flipV || false;
         this.power = data.power || 80;
         this.speed = data.speed || 1000;
         this.passes = data.passes || 1;
@@ -498,18 +574,29 @@ class LaserObject {
     }
 
     contains(mx, my) {
-        return mx >= this.x && mx <= this.x + this.w && my >= this.y && my <= this.y + this.h;
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h / 2;
+        const rad = -this.rotation * Math.PI / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const dx = mx - cx;
+        const dy = my - cy;
+        const rx = dx * cos - dy * sin + cx;
+        const ry = dx * sin + dy * cos + cy;
+        return rx >= this.x && rx <= this.x + this.w && ry >= this.y && ry <= this.y + this.h;
     }
 
     clone() {
         return new LaserObject(this.type, {
             name: this.name + '_copy', x: this.x + 5, y: this.y + 5, w: this.w, h: this.h,
+            rotation: this.rotation, flipH: this.flipH, flipV: this.flipV,
             power: this.power, speed: this.speed, passes: this.passes, image: this.image,
             paths: JSON.parse(JSON.stringify(this.paths))
         });
     }
 
     getHandles(scale, pan, ppm) {
+        // ⭐ pan è il centro (0,0)
         const px = pan.x + this.x * ppm * scale;
         const py = pan.y + this.y * ppm * scale;
         const pw = this.w * ppm * scale;
@@ -547,10 +634,41 @@ class LaserObject {
         else { xx = x1 + param * C; yy = y1 + param * D; }
         return Math.sqrt((px - xx) ** 2 + (py - yy) ** 2);
     }
+
+    getTransformedPaths() {
+        if (!this.paths.length) return [];
+        
+        return this.paths.map(path => {
+            return path.map(p => {
+                let x = p.x;
+                let y = p.y;
+                
+                if (this.flipH) x = 1 - x;
+                if (this.flipV) y = 1 - y;
+                
+                if (this.rotation !== 0) {
+                    const rad = this.rotation * Math.PI / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+                    const cx = x - 0.5;
+                    const cy = y - 0.5;
+                    const newX = cx * cos - cy * sin + 0.5;
+                    const newY = cx * sin + cy * cos + 0.5;
+                    x = Math.max(0, Math.min(1, newX));
+                    y = Math.max(0, Math.min(1, newY));
+                } else {
+                    x = Math.max(0, Math.min(1, x));
+                    y = Math.max(0, Math.min(1, y));
+                }
+                
+                return { x, y };
+            });
+        });
+    }
 }
 
 // ============================================
-// LaserCAM Class
+// LaserCAM Class - FULL RELATIVE MODE
 // ============================================
 class LaserCAM {
     constructor() {
@@ -560,7 +678,7 @@ class LaserCAM {
         this.selected = null;
         
         this.zoom = 1;
-        this.pan = { x: RULER_SIZE + 10, y: RULER_SIZE + 10 };
+        this.pan = { x: 0, y: 0 };  // ⭐ Calcolato in resize()
         this.ppm = 2;
         this.workArea = { w: 300, h: 300 };
         
@@ -572,6 +690,7 @@ class LaserCAM {
         
         this.port = null;
         this.reader = null;
+        this.writer = null;
         this.connected = false;
         this.jobRunning = false;
         this.jobPaused = false;
@@ -581,8 +700,10 @@ class LaserCAM {
         this.presets = this.loadPresets();
         this.jogStep = 10;
         
-        this.homePosition = this.loadHomePosition();
+        this.homePosition = { x: 0, y: 0 };  // ⭐ Home è sempre 0,0
         this.currentPosition = { x: 0, y: 0 };
+        this.positionKnown = false;  // ⭐ NUOVO
+        this.positionUpdateInterval = null;
         
         this.simulating = false;
         this.simPaused = false;
@@ -600,6 +721,8 @@ class LaserCAM {
         
         this.pathColors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe', '#00b894', '#e17055'];
         
+        this.vectorFonts = this.initVectorFonts();
+        
         this.init();
     }
 
@@ -610,16 +733,31 @@ class LaserCAM {
         this.renderPresets();
         this.render();
         this.applyMachineProfile();
-        this.applyHomePosition();
+        this.updateCurrentPosDisplay();
     }
 
+    // ⭐ RESIZE - Centra area di lavoro
     resize() {
         const parent = document.getElementById('canvasParent');
         this.canvas.width = parent.clientWidth;
         this.canvas.height = parent.clientHeight;
+        
+        // Centra l'area con 0,0 al centro
+        this.pan = {
+            x: (this.canvas.width + RULER_SIZE) / 2,
+            y: (this.canvas.height + RULER_SIZE) / 2
+        };
+        
         this.render();
     }
 
+    updateCurrentPosDisplay() {
+        const x = this.currentPosition.x.toFixed(3);
+        const y = this.currentPosition.y.toFixed(3);
+        document.getElementById('currentPosText').textContent = `X${x} Y${y}`;
+    }
+
+    // ========== RENDER - SISTEMA CENTRATO ==========
     render() {
         const ctx = this.ctx;
         const W = this.canvas.width, H = this.canvas.height;
@@ -628,31 +766,59 @@ class LaserCAM {
         ctx.fillRect(0, 0, W, H);
 
         const scale = this.ppm * this.zoom;
+        const halfW = this.workArea.w / 2;
+        const halfH = this.workArea.h / 2;
+        
+        // Area di lavoro centrata (0,0 = centro)
+        const areaLeft = this.pan.x - halfW * scale;
+        const areaTop = this.pan.y - halfH * scale;
         const areaW = this.workArea.w * scale;
         const areaH = this.workArea.h * scale;
         
-        this.drawRulers(ctx, scale, areaW, areaH);
+        this.drawRulers(ctx, scale, halfW, halfH);
         
+        // Background
         ctx.fillStyle = '#0a0f18';
-        ctx.fillRect(this.pan.x, this.pan.y, areaW, areaH);
+        ctx.fillRect(areaLeft, areaTop, areaW, areaH);
         
+        // Griglia
         ctx.strokeStyle = '#1a2030';
         ctx.lineWidth = 1;
         const gridMM = this.zoom < 0.5 ? 50 : this.zoom < 1 ? 20 : 10;
-        for (let x = 0; x <= this.workArea.w; x += gridMM) {
+        
+        for (let x = -halfW; x <= halfW; x += gridMM) {
             const px = this.pan.x + x * scale;
-            ctx.beginPath(); ctx.moveTo(px, this.pan.y); ctx.lineTo(px, this.pan.y + areaH); ctx.stroke();
+            ctx.beginPath(); 
+            ctx.moveTo(px, areaTop); 
+            ctx.lineTo(px, areaTop + areaH); 
+            ctx.stroke();
         }
-        for (let y = 0; y <= this.workArea.h; y += gridMM) {
+        for (let y = -halfH; y <= halfH; y += gridMM) {
             const py = this.pan.y + y * scale;
-            ctx.beginPath(); ctx.moveTo(this.pan.x, py); ctx.lineTo(this.pan.x + areaW, py); ctx.stroke();
+            ctx.beginPath(); 
+            ctx.moveTo(areaLeft, py); 
+            ctx.lineTo(areaLeft + areaW, py); 
+            ctx.stroke();
         }
         
+        // ⭐ Assi centrali (X e Y attraverso 0,0)
+        ctx.strokeStyle = '#3a5a3a';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(this.pan.x, areaTop);
+        ctx.lineTo(this.pan.x, areaTop + areaH);
+        ctx.moveTo(areaLeft, this.pan.y);
+        ctx.lineTo(areaLeft + areaW, this.pan.y);
+        ctx.stroke();
+        
+        // Bordo area
         ctx.strokeStyle = '#3a4a6a';
         ctx.lineWidth = 2;
-        ctx.strokeRect(this.pan.x, this.pan.y, areaW, areaH);
+        ctx.strokeRect(areaLeft, areaTop, areaW, areaH);
 
         this.drawHomeMarker(ctx, scale);
+        this.drawCurrentPosMarker(ctx, scale);
+        
         this.objects.forEach(obj => this.drawObject(obj));
         
         if (this.simulating && this.simData?.currentPoint) {
@@ -664,7 +830,8 @@ class LaserCAM {
             `| ${t('editing')}: ${this.editingObject.paths.length} paths` : '';
     }
 
-    drawRulers(ctx, scale, areaW, areaH) {
+    // ⭐ RULERS - Con coordinate negative/positive
+    drawRulers(ctx, scale, halfW, halfH) {
         const W = this.canvas.width, H = this.canvas.height;
         
         ctx.fillStyle = '#1a2530';
@@ -678,7 +845,7 @@ class LaserCAM {
         ctx.font = '9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('mm', RULER_SIZE/2, RULER_SIZE/2);
+        ctx.fillText('0', RULER_SIZE/2, RULER_SIZE/2);
         
         let majorTick = 50, minorTick = 10;
         if (this.zoom > 1.5) { majorTick = 20; minorTick = 5; }
@@ -689,9 +856,10 @@ class LaserCAM {
         ctx.fillStyle = '#8a9aaa';
         ctx.font = '8px sans-serif';
         
+        // ⭐ Righello X con negativi e positivi
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        for (let mm = 0; mm <= this.workArea.w; mm += minorTick) {
+        for (let mm = -halfW; mm <= halfW; mm += minorTick) {
             const px = this.pan.x + mm * scale;
             if (px < RULER_SIZE || px > W) continue;
             const isMajor = mm % majorTick === 0;
@@ -702,9 +870,10 @@ class LaserCAM {
             if (isMajor) ctx.fillText(mm.toString(), px, RULER_SIZE - 18);
         }
         
+        // ⭐ Righello Y con negativi e positivi
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        for (let mm = 0; mm <= this.workArea.h; mm += minorTick) {
+        for (let mm = -halfH; mm <= halfH; mm += minorTick) {
             const py = this.pan.y + mm * scale;
             if (py < RULER_SIZE || py > H) continue;
             const isMajor = mm % majorTick === 0;
@@ -722,20 +891,57 @@ class LaserCAM {
         ctx.stroke();
     }
 
+    // ⭐ HOME MARKER - Sempre al centro (0,0)
     drawHomeMarker(ctx, scale) {
-        const hx = this.pan.x + this.homePosition.x * scale;
-        const hy = this.pan.y + this.homePosition.y * scale;
+        const hx = this.pan.x;
+        const hy = this.pan.y;
+        
         ctx.save();
         ctx.strokeStyle = '#00ff00';
         ctx.fillStyle = '#00ff00';
         ctx.lineWidth = 2;
+        
+        // Croce grande
         ctx.beginPath();
-        ctx.moveTo(hx - 10, hy); ctx.lineTo(hx + 10, hy);
-        ctx.moveTo(hx, hy - 10); ctx.lineTo(hx, hy + 10);
+        ctx.moveTo(hx - 15, hy); ctx.lineTo(hx + 15, hy);
+        ctx.moveTo(hx, hy - 15); ctx.lineTo(hx, hy + 15);
         ctx.stroke();
-        ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.stroke();
+        
+        // Cerchio
+        ctx.beginPath(); 
+        ctx.arc(hx, hy, 8, 0, Math.PI * 2); 
+        ctx.stroke();
+        
+        // Labels
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('HOME', hx + 14, hy - 10);
+        ctx.fillText('(0,0)', hx + 14, hy + 4);
+        ctx.restore();
+    }
+
+    // ⭐ CURRENT POSITION MARKER
+    drawCurrentPosMarker(ctx, scale) {
+        if (!this.positionKnown) return;
+        
+        const px = this.pan.x + this.currentPosition.x * scale;
+        const py = this.pan.y + this.currentPosition.y * scale;
+        
+        ctx.save();
+        ctx.strokeStyle = '#ff9900';
+        ctx.fillStyle = '#ff9900';
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(px - 8, py); ctx.lineTo(px + 8, py);
+        ctx.moveTo(px, py - 8); ctx.lineTo(px, py + 8);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
         ctx.font = 'bold 9px sans-serif';
-        ctx.fillText('H', hx + 10, hy - 8);
+        ctx.fillText('LASER', px + 10, py - 5);
         ctx.restore();
     }
 
@@ -759,19 +965,29 @@ class LaserCAM {
         ctx.restore();
     }
 
+    // ⭐ DRAW OBJECT - Coordinate relative al centro
     drawObject(obj) {
         const ctx = this.ctx;
         const scale = this.ppm * this.zoom;
+        
+        // obj.x e obj.y sono relativi al centro
         const px = this.pan.x + obj.x * scale;
         const py = this.pan.y + obj.y * scale;
         const pw = obj.w * scale;
         const ph = obj.h * scale;
+        const cx = px + pw / 2;
+        const cy = py + ph / 2;
 
         ctx.save();
         
+        ctx.translate(cx, cy);
+        ctx.rotate(obj.rotation * Math.PI / 180);
+        ctx.scale(obj.flipH ? -1 : 1, obj.flipV ? -1 : 1);
+        ctx.translate(-cx, -cy);
+        
         if ((obj.type === 'image' || obj.type === 'text') && obj.image) {
             ctx.drawImage(obj.image, px, py, pw, ph);
-        } else if (obj.type === 'vector' && obj.paths.length > 0) {
+        } else if ((obj.type === 'vector' || obj.type === 'vectorText') && obj.paths.length > 0) {
             obj.paths.forEach((path, pathIndex) => {
                 if (this.editMode && this.editingObject === obj) {
                     ctx.strokeStyle = this.pathColors[pathIndex % this.pathColors.length];
@@ -796,19 +1012,27 @@ class LaserCAM {
             });
         }
 
+        ctx.restore();
+
         if (obj.selected && !this.editMode) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(obj.rotation * Math.PI / 180);
+            ctx.translate(-cx, -cy);
+            
             ctx.strokeStyle = '#00d4ff';
             ctx.lineWidth = 2;
             ctx.setLineDash([4, 4]);
             ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
             ctx.setLineDash([]);
+            
+            ctx.restore();
+            
             ctx.fillStyle = '#00d4ff';
             obj.getHandles(this.zoom, this.pan, this.ppm).forEach(h => ctx.fillRect(h.x, h.y, 8, 8));
         }
-        
-        ctx.restore();
     }
-
+        // ========== SETUP EVENTS ==========
     setupEvents() {
         this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
         this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
@@ -824,59 +1048,66 @@ class LaserCAM {
             item.addEventListener('click', () => this.handleContextAction(item.dataset.action));
         });
 
+        // Header controls
         document.getElementById('btnConn').addEventListener('click', () => this.toggleConnection());
         document.getElementById('btnStop').addEventListener('click', () => this.emergencyStop());
+        
+        // Toolbar
         document.getElementById('btnFit').addEventListener('click', () => this.zoomFit());
         document.getElementById('btnDel').addEventListener('click', () => this.deleteSelected());
         document.getElementById('btnDup').addEventListener('click', () => this.duplicateSelected());
+        document.getElementById('btnRotateCW').addEventListener('click', () => this.rotateSelected(90));
+        document.getElementById('btnRotateCCW').addEventListener('click', () => this.rotateSelected(-90));
+        document.getElementById('btnFlipH').addEventListener('click', () => this.flipSelected('h'));
+        document.getElementById('btnFlipV').addEventListener('click', () => this.flipSelected('v'));
         document.getElementById('btnGcode').addEventListener('click', () => this.showGCode('vector'));
-        document.getElementById('btnSelAll').addEventListener('click', () => this.selectAll());
-        document.getElementById('btnClear').addEventListener('click', () => this.clearAll());
-        document.getElementById('btnVectorize').addEventListener('click', () => this.vectorize());
-        document.getElementById('btnStart').addEventListener('click', () => this.startJob());
-        document.getElementById('btnPause').addEventListener('click', () => this.togglePause());
-        document.getElementById('btnConsole').addEventListener('click', () => document.getElementById('console').classList.toggle('show'));
-        document.getElementById('btnConsoleClear').addEventListener('click', () => document.getElementById('consoleLog').innerHTML = '');
-        document.getElementById('btnConsoleSend').addEventListener('click', () => this.sendManual());
+        document.getElementById('btnSimulate').addEventListener('click', () => this.startSimulation());
+        document.getElementById('btnFrameJob').addEventListener('click', () => this.frameJob());
+        document.getElementById('btnEditPaths').addEventListener('click', () => this.enterEditMode());
+        document.getElementById('btnExitEdit').addEventListener('click', () => this.exitEditMode());
         
+        // Left panel
         document.getElementById('btnSaveProj').addEventListener('click', () => this.saveProject());
         document.getElementById('btnLoadProj').addEventListener('click', () => document.getElementById('projInput').click());
         document.getElementById('btnSaveMach').addEventListener('click', () => this.saveMachine());
+        document.getElementById('btnSetHomeCurrent').addEventListener('click', () => this.setHomeFromCurrent());
+        document.getElementById('btnGoHome').addEventListener('click', () => this.goHome());
         document.getElementById('btnAddPreset').addEventListener('click', () => openModal('modalPreset'));
         document.getElementById('btnSavePreset').addEventListener('click', () => this.savePreset());
         document.getElementById('btnAddText').addEventListener('click', () => openModal('modalText'));
         document.getElementById('btnCreateText').addEventListener('click', () => this.createText());
+        document.getElementById('btnAddVectorText').addEventListener('click', () => openModal('modalVectorText'));
+        document.getElementById('btnCreateVectorText').addEventListener('click', () => this.createVectorText());
+        document.getElementById('btnVectorize').addEventListener('click', () => this.vectorize());
+        document.getElementById('btnRasterGcode').addEventListener('click', () => this.showGCode('raster'));
+        document.getElementById('btnDeletePath').addEventListener('click', () => this.deleteSelectedPath());
+        document.getElementById('btnDeleteAllSmall').addEventListener('click', () => this.deleteSmallPaths());
         
-        document.getElementById('btnSetHome').addEventListener('click', () => this.saveHomePosition());
-        document.getElementById('btnGoHome').addEventListener('click', () => this.goHome());
+        // Right panel
+        document.getElementById('btnSelAll').addEventListener('click', () => this.selectAll());
+        document.getElementById('btnClear').addEventListener('click', () => this.clearAll());
+        document.getElementById('btnStart').addEventListener('click', () => this.startJob());
+        document.getElementById('btnPause').addEventListener('click', () => this.togglePause());
         
-        document.getElementById('btnSimulate').addEventListener('click', () => this.startSimulation());
+        // Rotation buttons
+        document.getElementById('btnRot0').addEventListener('click', () => this.setRotation(0));
+        document.getElementById('btnRot90').addEventListener('click', () => this.setRotation(90));
+        document.getElementById('btnRot180').addEventListener('click', () => this.setRotation(180));
+        document.getElementById('btnRot270').addEventListener('click', () => this.setRotation(270));
+        
+        // Simulation
         document.getElementById('btnSimStop').addEventListener('click', () => this.stopSimulation());
         document.getElementById('btnSimPause').addEventListener('click', () => this.toggleSimPause());
         document.getElementById('simSpeed').addEventListener('input', e => {
             this.simSpeed = +e.target.value;
             document.getElementById('simSpeedVal').textContent = this.simSpeed;
         });
-        
-        document.getElementById('btnFrameJob').addEventListener('click', () => this.frameJob());
-        
-        document.getElementById('btnEditPaths').addEventListener('click', () => this.enterEditMode());
-        document.getElementById('btnExitEdit').addEventListener('click', () => this.exitEditMode());
-        document.getElementById('btnDeletePath').addEventListener('click', () => this.deleteSelectedPath());
-        document.getElementById('btnDeleteAllSmall').addEventListener('click', () => this.deleteSmallPaths());
-        
-        document.getElementById('btnRasterGcode').addEventListener('click', () => this.showGCode('raster'));
-        document.getElementById('rasterRes').addEventListener('input', e => {
-            this.rasterRes = +e.target.value;
-            document.getElementById('rasterResVal').textContent = e.target.value;
-        });
-        document.getElementById('rasterBidir').addEventListener('change', e => {
-            this.rasterBidir = e.target.checked;
-        });
 
+        // File inputs
         document.getElementById('fileInput').addEventListener('change', e => { this.loadFile(e.target.files[0]); e.target.value = ''; });
         document.getElementById('projInput').addEventListener('change', e => { this.loadProject(e.target.files[0]); e.target.value = ''; });
 
+        // Property inputs
         ['propX', 'propY', 'propW', 'propH'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => this.applyProps());
         });
@@ -891,10 +1122,26 @@ class LaserCAM {
         document.getElementById('propPass').addEventListener('change', e => {
             if (this.selected) this.selected.passes = +e.target.value;
         });
+        document.getElementById('propRot').addEventListener('input', e => {
+            document.getElementById('rotVal').textContent = e.target.value;
+            if (this.selected) {
+                this.selected.rotation = +e.target.value;
+                this.render();
+            }
+        });
 
+        // Range inputs
         document.getElementById('vecTreshold').addEventListener('input', e => document.getElementById('treshVal').textContent = e.target.value);
         document.getElementById('borderMargin').addEventListener('input', e => document.getElementById('borderMarginVal').textContent = e.target.value);
+        document.getElementById('rasterRes').addEventListener('input', e => {
+            this.rasterRes = +e.target.value;
+            document.getElementById('rasterResVal').textContent = e.target.value;
+        });
+        document.getElementById('rasterBidir').addEventListener('change', e => {
+            this.rasterBidir = e.target.checked;
+        });
 
+        // Jog controls
         document.querySelectorAll('[data-jog]').forEach(btn => {
             btn.addEventListener('click', () => this.jog(btn.dataset.jog));
         });
@@ -905,11 +1152,16 @@ class LaserCAM {
                 this.jogStep = +btn.dataset.step;
             });
         });
-
+        
+        // Console
+        document.getElementById('btnConsole').addEventListener('click', () => document.getElementById('console').classList.toggle('show'));
+        document.getElementById('btnConsoleClear').addEventListener('click', () => document.getElementById('consoleLog').innerHTML = '');
+        document.getElementById('btnConsoleSend').addEventListener('click', () => this.sendManual());
         document.getElementById('consoleInput').addEventListener('keypress', e => {
             if (e.key === 'Enter') this.sendManual();
         });
         
+        // Tab buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -919,13 +1171,636 @@ class LaserCAM {
         });
     }
 
+    // ========== HOME POSITION MANAGEMENT - FULL RELATIVE ==========
+    
+    loadHomePosition() { 
+        // Home è sempre 0,0 nel sistema relativo
+        return { x: 0, y: 0 }; 
+    }
+    
+    applyHomePosition() { 
+        document.getElementById('homeX').value = 0; 
+        document.getElementById('homeY').value = 0; 
+    }
+    
+    // ⭐ SET HOME FROM CURRENT - Invia G92 X0 Y0
+    async setHomeFromCurrent() {
+        if (!this.connected) {
+            this.log('❌ Not connected to machine', 'err');
+            return;
+        }
+        
+        // Invia G92 per resettare le coordinate macchina
+        await this.send('G92 X0 Y0');
+        await this.delay(200);
+        
+        // Reset tracking
+        this.currentPosition = { x: 0, y: 0 };
+        this.homePosition = { x: 0, y: 0 };
+        this.positionKnown = true;
+        
+        this.updateCurrentPosDisplay();
+        this.log('✅ Home set at current position (G92 X0 Y0 sent). This is now CENTER (0,0)');
+        this.render();
+    }
+    
+    saveHomePosition() {
+        // In modalità relativa, questo è alias di setHomeFromCurrent
+        this.setHomeFromCurrent();
+    }
+    
+    // ⭐ GO HOME - Movimento relativo verso 0,0
+    async goHome() { 
+        if (!this.connected) {
+            this.log('❌ Not connected', 'err');
+            return;
+        }
+        
+        if (!this.positionKnown) {
+            this.log('⚠️ Position unknown. Set home first or jog to known position.', 'warn');
+            return;
+        }
+        
+        // Calcola movimento relativo per tornare a 0,0
+        const dx = -this.currentPosition.x;
+        const dy = -this.currentPosition.y;
+        
+        if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
+            this.log('Already at home (0,0)');
+            return;
+        }
+        
+        await this.send('G91');
+        await this.send(`G0 X${dx.toFixed(3)} Y${dy.toFixed(3)} F3000`);
+        
+        this.currentPosition = { x: 0, y: 0 };
+        this.updateCurrentPosDisplay();
+        this.log('↩️ Returned to home (0,0)');
+        this.render();
+    }
+
+    setHomeAt(x, y) {
+        // In modalità centro-relativa non supportiamo home arbitrari
+        this.log('⚠️ Move laser manually to desired position, then click "Set Home from Current"', 'warn');
+    }
+
+    // ========== G-CODE GENERATION - FULL RELATIVE VECTOR ==========
+    
+    generateVectorGCode() {
+        let gcode = [
+            '; LaserCAM Pro v1.0 - FULL RELATIVE MODE',
+            '; Home = Center of work area (0,0)',
+            '; All movements are G91 (relative)',
+            '; Generated: ' + new Date().toLocaleString(),
+            '',
+            'G17 G21',
+            'G91',          // ⭐ SEMPRE RELATIVO
+            'M5',
+            '',
+            'M3 S0',
+            ''
+        ];
+        
+        let lastX = 0, lastY = 0; // Partiamo da 0,0
+        let totalDist = 0;
+        
+        const mirrorX = document.getElementById('mirrorX').checked;
+        const mirrorY = document.getElementById('mirrorY').checked;
+        
+        this.objects.forEach(obj => {
+            if (!['vector', 'vectorText'].includes(obj.type) || !obj.paths.length) return;
+            
+            const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; Object: ${obj.name}`);
+            gcode.push(`; Power: ${obj.power}%, Speed: ${obj.speed}mm/min, Passes: ${obj.passes}`);
+            gcode.push(`F${obj.speed}`);
+            
+            const transformedPaths = obj.getTransformedPaths();
+            
+            for (let pass = 0; pass < obj.passes; pass++) {
+                if (obj.passes > 1) gcode.push(`; Pass ${pass + 1}/${obj.passes}`);
+                
+                transformedPaths.forEach(path => {
+                    if (path.length < 2) return;
+                    
+                    // Coordinate assolute relative al centro
+                    let firstX = obj.x + path[0].x * obj.w;
+                    let firstY = obj.y + path[0].y * obj.h;
+                    
+                    if (mirrorX) firstX = -firstX;
+                    if (mirrorY) firstY = -firstY;
+                    
+                    // ⭐ Movimento RELATIVO verso primo punto
+                    let dx = firstX - lastX;
+                    let dy = firstY - lastY;
+                    
+                    if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+                        gcode.push(`G0 X${dx.toFixed(3)} Y${dy.toFixed(3)} S0`);
+                        totalDist += Math.sqrt(dx*dx + dy*dy);
+                    }
+                    
+                    lastX = firstX;
+                    lastY = firstY;
+                    
+                    // Incisione path
+                    for (let i = 1; i < path.length; i++) {
+                        let absX = obj.x + path[i].x * obj.w;
+                        let absY = obj.y + path[i].y * obj.h;
+                        
+                        if (mirrorX) absX = -absX;
+                        if (mirrorY) absY = -absY;
+                        
+                        dx = absX - lastX;
+                        dy = absY - lastY;
+                        
+                        const power = (i === 1 || i === path.length - 1) ? 0 : sVal;
+                        
+                        if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+                            gcode.push(`G1 X${dx.toFixed(3)} Y${dy.toFixed(3)} S${power}`);
+                            totalDist += Math.sqrt(dx*dx + dy*dy);
+                        }
+                        
+                        lastX = absX;
+                        lastY = absY;
+                    }
+                    
+                    gcode.push(`G1 X0 Y0 S0`);
+                });
+            }
+            gcode.push('');
+        });
+
+        // ⭐ Ritorno a home (0,0)
+        const dxHome = -lastX;
+        const dyHome = -lastY;
+        
+        gcode.push('; Return to home (0,0)');
+        gcode.push('M5');
+        gcode.push('F3000');
+        if (Math.abs(dxHome) > 0.001 || Math.abs(dyHome) > 0.001) {
+            gcode.push(`G0 X${dxHome.toFixed(3)} Y${dyHome.toFixed(3)}`);
+        }
+        gcode.push('M2');
+        
+        return { code: gcode.join('\n'), lines: gcode.length, dist: totalDist };
+    }
+
+    // ========== G-CODE GENERATION - FULL RELATIVE RASTER ==========
+    
+    generateRasterGCode() {
+        let gcode = [
+            '; LaserCAM Pro v1.0 - RASTER FULL RELATIVE',
+            `; Resolution: ${this.rasterRes} lines/mm`,
+            '; Home = Center (0,0)',
+            '; Generated: ' + new Date().toLocaleString(),
+            '',
+            'G17 G21',
+            'G91',
+            'M5',
+            '',
+            'M3 S0',
+            ''
+        ];
+        
+        let lastX = 0, lastY = 0;
+        let totalDist = 0;
+        const res = this.rasterRes;
+        
+        const mirrorX = document.getElementById('mirrorX').checked;
+        const mirrorY = document.getElementById('mirrorY').checked;
+        
+        this.objects.forEach(obj => {
+            if (!['image', 'text'].includes(obj.type) || !obj.image) return;
+            
+            const sVal = Math.round(obj.power / 100 * 1000);
+            gcode.push(`; Object: ${obj.name}`);
+            gcode.push(`F${obj.speed}`);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(obj.w * res);
+            canvas.height = Math.ceil(obj.h * res);
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(obj.rotation * Math.PI / 180);
+            ctx.scale(obj.flipH ? -1 : 1, obj.flipV ? -1 : 1);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            const lineSpacing = 1 / res;
+
+            for (let row = 0; row < canvas.height; row++) {
+                let y = obj.y + row * lineSpacing;
+                if (mirrorY) y = -y;
+                
+                const reverse = this.rasterBidir && row % 2 === 1;
+                let segments = [], inSeg = false, segStart = 0;
+                
+                const start = reverse ? canvas.width - 1 : 0;
+                const end = reverse ? -1 : canvas.width;
+                const step = reverse ? -1 : 1;
+
+                for (let col = start; col !== end; col += step) {
+                    const idx = (row * canvas.width + col) * 4;
+                    const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
+                    const black = gray < 128;
+                    if (black && !inSeg) { segStart = col; inSeg = true; }
+                    else if (!black && inSeg) { segments.push({ s: segStart, e: col - step }); inSeg = false; }
+                }
+                if (inSeg) segments.push({ s: segStart, e: reverse ? 0 : canvas.width - 1 });
+
+                segments.forEach(seg => {
+                    let x1 = obj.x + Math.min(seg.s, seg.e) * lineSpacing;
+                    let x2 = obj.x + Math.max(seg.s, seg.e) * lineSpacing;
+                    
+                    if (mirrorX) {
+                        const tmp = -x2;
+                        x2 = -x1;
+                        x1 = tmp;
+                    }
+                    
+                    // ⭐ Movimento RELATIVO verso inizio segmento
+                    let dxStart = x1 - lastX;
+                    let dyStart = y - lastY;
+                    
+                    if (Math.abs(dxStart) > 0.001 || Math.abs(dyStart) > 0.001) {
+                        gcode.push(`G0 X${dxStart.toFixed(3)} Y${dyStart.toFixed(3)} S0`);
+                        totalDist += Math.sqrt(dxStart*dxStart + dyStart*dyStart);
+                    }
+                    lastX = x1;
+                    lastY = y;
+                    
+                    // Incisione RELATIVA
+                    const dxBurn = x2 - x1;
+                    if (Math.abs(dxBurn) > 0.001) {
+                        gcode.push(`G1 X${dxBurn.toFixed(3)} Y0 S${sVal}`);
+                        gcode.push(`G1 X0 Y0 S0`);
+                        totalDist += Math.abs(dxBurn);
+                    }
+                    lastX = x2;
+                });
+            }
+            gcode.push('');
+        });
+        
+        // ⭐ Ritorno a home
+        const dxHome = -lastX;
+        const dyHome = -lastY;
+        
+        gcode.push('M5');
+        gcode.push('F3000');
+        if (Math.abs(dxHome) > 0.001 || Math.abs(dyHome) > 0.001) {
+            gcode.push(`G0 X${dxHome.toFixed(3)} Y${dyHome.toFixed(3)}`);
+        }
+        gcode.push('M2');
+        
+        return { code: gcode.join('\n'), lines: gcode.length, dist: totalDist };
+    }
+
+    showGCode(mode = 'vector') {
+        if (!this.objects.length) { this.log(t('msg_no_objects'), 'err'); return; }
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === mode));
+        
+        const result = mode === 'raster' ? this.generateRasterGCode() : this.generateVectorGCode();
+        document.getElementById('gcodeOutput').value = result.code;
+        document.getElementById('gcodeLines').textContent = result.lines;
+        document.getElementById('gcodeDist').textContent = result.dist.toFixed(0);
+        
+        const avgSpeed = 1500;
+        const timeMin = (result.dist / avgSpeed) + (result.lines * 0.001);
+        document.getElementById('gcodeTime').textContent = timeMin.toFixed(1);
+        
+        openModal('modalGcode');
+        this.log(`G-Code generated (${mode}): ${result.lines} lines`);
+
+        document.getElementById('btnCopyGcode').onclick = () => { 
+            navigator.clipboard.writeText(result.code); 
+            this.log('📋 Copied to clipboard'); 
+        };
+        document.getElementById('btnDownloadGcode').onclick = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([result.code], { type: 'text/plain' }));
+            a.download = `laser_${mode}_${Date.now()}.gcode`;
+            a.click();
+            this.log('💾 Downloaded');
+        };
+        document.getElementById('btnSendGcode').onclick = () => { 
+            closeModal('modalGcode'); 
+            this.startJobWithCode(result.code); 
+        };
+    }
+
+    // ========== FRAME JOB - FULL RELATIVE ==========
+    
+    async frameJob() {
+        if (!this.connected) { this.log('❌ Not connected', 'err'); return; }
+        
+        if (!this.objects.length) {
+            this.log('❌ No objects to frame', 'err');
+            return;
+        }
+        
+        // Bounds degli oggetti (coordinate relative al centro)
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        this.objects.forEach(o => { 
+            minX = Math.min(minX, o.x); 
+            minY = Math.min(minY, o.y); 
+            maxX = Math.max(maxX, o.x + o.w); 
+            maxY = Math.max(maxY, o.y + o.h); 
+        });
+        
+        const mirrorX = document.getElementById('mirrorX').checked;
+        const mirrorY = document.getElementById('mirrorY').checked;
+        
+        if (mirrorX) {
+            const tmp = -maxX;
+            maxX = -minX;
+            minX = tmp;
+        }
+        if (mirrorY) {
+            const tmp = -maxY;
+            maxY = -minY;
+            minY = tmp;
+        }
+        
+        const w = maxX - minX;
+        const h = maxY - minY;
+        
+        this.log(`🔲 Framing job (${w.toFixed(1)} x ${h.toFixed(1)} mm)`);
+        
+        await this.send('G91');
+        await this.send('M3 S5');
+        await this.send('F3000');
+        
+        // ⭐ Tutti movimenti RELATIVI da posizione corrente (0,0 se siamo a home)
+        // Vai al primo angolo (relativo da 0,0)
+        await this.send(`G0 X${minX.toFixed(2)} Y${minY.toFixed(2)}`);
+        await this.delay(200);
+        
+        // Rettangolo
+        await this.send(`G0 X${w.toFixed(2)} Y0`);
+        await this.delay(200);
+        await this.send(`G0 X0 Y${h.toFixed(2)}`);
+        await this.delay(200);
+        await this.send(`G0 X${(-w).toFixed(2)} Y0`);
+        await this.delay(200);
+        await this.send(`G0 X0 Y${(-h).toFixed(2)}`);
+        await this.delay(200);
+        
+        await this.send('M5');
+        
+        // ⭐ Torna a 0,0 (movimento inverso del primo)
+        await this.send(`G0 X${(-minX).toFixed(2)} Y${(-minY).toFixed(2)}`);
+        
+        this.log('✅ Frame complete, returned to home');
+    }
+
+    // ========== SERIAL COMMUNICATION ==========
+    
+    async toggleConnection() {
+        if (this.connected) await this.disconnect();
+        else await this.connect();
+    }
+
+    async connect() {
+        try {
+            if (!('serial' in navigator)) { 
+                alert('⚠️ Web Serial API not supported. Use Chrome/Edge.'); 
+                return; 
+            }
+            this.port = await navigator.serial.requestPort();
+            await this.port.open({ baudRate: +document.getElementById('baudRate').value });
+            this.connected = true;
+            document.getElementById('status').classList.add('on');
+            document.getElementById('statusTxt').textContent = t('status_connected');
+            document.getElementById('btnConn').textContent = t('btn_disconnect');
+            this.log('✅ Connected');
+            this.startReading();
+            
+            this.startPositionPolling();
+            
+            await this.delay(1000);
+            await this.send('$X'); // Unlock GRBL
+            await this.delay(200);
+            await this.send('?'); // Query status
+        } catch (err) { 
+            this.log('❌ Connection error: ' + err.message, 'err'); 
+        }
+    }
+
+    async disconnect() {
+        this.jobRunning = false;
+        this.stopPositionPolling();
+        
+        await this.send('M5');
+        if (this.reader) { 
+            try { await this.reader.cancel(); } catch(e) {} 
+            this.reader = null; 
+        }
+        if (this.port) { 
+            try { await this.port.close(); } catch(e) {} 
+            this.port = null; 
+        }
+        this.connected = false;
+        document.getElementById('status').classList.remove('on');
+        document.getElementById('statusTxt').textContent = t('status_disconnected');
+        document.getElementById('btnConn').textContent = t('btn_connect');
+        this.log('🔌 Disconnected');
+    }
+
+    startPositionPolling() {
+        this.stopPositionPolling();
+        this.positionUpdateInterval = setInterval(() => {
+            if (this.connected && !this.jobRunning) {
+                this.send('?');
+            }
+        }, 250);
+    }
+
+    stopPositionPolling() {
+        if (this.positionUpdateInterval) {
+            clearInterval(this.positionUpdateInterval);
+            this.positionUpdateInterval = null;
+        }
+    }
+
+    async startReading() {
+        while (this.port?.readable) {
+            try {
+                this.reader = this.port.readable.getReader();
+                let buffer = '';
+                while (true) {
+                    const { value, done } = await this.reader.read();
+                    if (done) break;
+                    buffer += new TextDecoder().decode(value);
+                    const lines = buffer.split('\n'); 
+                    buffer = lines.pop();
+                    lines.forEach(l => { 
+                        l = l.trim(); 
+                        if (l) this.handleResponse(l); 
+                    });
+                }
+            } catch (err) { 
+                if (err.name !== 'CancelledError') 
+                    this.log('❌ Read error: ' + err.message, 'err'); 
+            }
+            finally { 
+                this.reader?.releaseLock(); 
+            }
+        }
+    }
+
+    handleResponse(line) {
+        this.log('< ' + line, 'recv');
+        
+        // Parse posizione da status GRBL
+        const mposMatch = line.match(/[MW]Pos:([-\d.]+),([-\d.]+)/);
+        if (mposMatch) { 
+            this.currentPosition = { 
+                x: parseFloat(mposMatch[1]), 
+                y: parseFloat(mposMatch[2]) 
+            };
+            this.positionKnown = true;
+            this.updateCurrentPosDisplay();
+            this.render();
+        }
+    }
+
+    async send(cmd) {
+        if (!this.connected || !this.port) return false;
+        try {
+            const w = this.port.writable.getWriter();
+            await w.write(new TextEncoder().encode(cmd + '\n'));
+            w.releaseLock();
+            if (cmd.trim() && cmd !== '?') this.log('> ' + cmd, 'send');
+            return true;
+        } catch (err) { 
+            this.log('❌ Send error: ' + err.message, 'err'); 
+            return false; 
+        }
+    }
+
+    sendManual() {
+        const input = document.getElementById('consoleInput');
+        if (input.value.trim()) { 
+            this.send(input.value.trim()); 
+            input.value = ''; 
+        }
+    }
+
+    async emergencyStop() {
+        this.log('🚨 EMERGENCY STOP', 'err');
+        this.jobRunning = false;
+        this.stopSimulation();
+        if (this.port?.writable) {
+            const w = this.port.writable.getWriter();
+            await w.write(new TextEncoder().encode('\x18'));
+            w.releaseLock();
+        }
+        await this.send('M5');
+        await this.send('$X');
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('progBar').style.width = '0%';
+        document.getElementById('footProg').textContent = '0%';
+    }
+
+    async startJob() { 
+        await this.startJobWithCode(this.generateVectorGCode().code); 
+    }
+
+    async startJobWithCode(code) {
+        if (!this.connected) { 
+            this.log('❌ Not connected', 'err'); 
+            return; 
+        }
+        
+        // ⭐ Verifica posizione home
+        if (this.positionKnown && (Math.abs(this.currentPosition.x) > 0.1 || Math.abs(this.currentPosition.y) > 0.1)) {
+            if (!confirm('⚠️ Laser is not at home (0,0). Go to home first?')) {
+                return;
+            }
+            await this.goHome();
+            await this.delay(500);
+        }
+        
+        this.jobQueue = code.split('\n').filter(l => l.trim() && !l.startsWith(';'));
+        this.jobRunning = true;
+        this.jobPaused = false;
+        document.getElementById('btnStart').disabled = true;
+        this.stopPositionPolling();
+        this.log('▶️ Starting job...');
+
+        for (let i = 0; i < this.jobQueue.length && this.jobRunning; i++) {
+            while (this.jobPaused) await this.delay(100);
+            await this.send(this.jobQueue[i]);
+            await this.delay(10);
+            const p = ((i + 1) / this.jobQueue.length) * 100;
+            document.getElementById('progBar').style.width = p + '%';
+            document.getElementById('footProg').textContent = Math.round(p) + '%';
+        }
+
+        this.jobRunning = false;
+        document.getElementById('btnStart').disabled = false;
+        this.startPositionPolling();
+        
+        // Dopo job, siamo tornati a 0,0
+        this.currentPosition = { x: 0, y: 0 };
+        this.updateCurrentPosDisplay();
+        this.log('✅ Job complete!');
+        this.render();
+    }
+
+    togglePause() {
+        if (!this.jobRunning) return;
+        this.jobPaused = !this.jobPaused;
+        this.send(this.jobPaused ? '!' : '~');
+        document.getElementById('btnPause').textContent = this.jobPaused ? t('btn_resume') : t('btn_pause');
+        this.log(this.jobPaused ? '⏸️ Paused' : '▶️ Resumed');
+    }
+
+    jog(dir) {
+        if (!this.connected) return;
+        
+        if (dir === 'H') { 
+            this.goHome(); 
+            return; 
+        }
+        
+        const step = this.jogStep;
+        let dx = 0, dy = 0;
+        
+        if (dir === 'X+') dx = step;
+        else if (dir === 'X-') dx = -step;
+        else if (dir === 'Y+') dy = step;
+        else if (dir === 'Y-') dy = -step;
+        
+        this.send(`$J=G91 X${dx} Y${dy} F3000`);
+        
+        // ⭐ Aggiorna tracking
+        this.currentPosition.x += dx;
+        this.currentPosition.y += dy;
+        this.positionKnown = true;
+        this.updateCurrentPosDisplay();
+        this.render();
+    }
+
     // ========== CONTEXT MENU ==========
+    
     onContextMenu(e) {
         e.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         const scale = this.ppm * this.zoom;
+        
+        // ⭐ Coordinate relative al centro
         const mx = (mouseX - this.pan.x) / scale;
         const my = (mouseY - this.pan.y) / scale;
 
@@ -942,17 +1817,14 @@ class LaserCAM {
         menu.style.left = e.clientX + 'px';
         menu.style.top = e.clientY + 'px';
         
-        const inWorkArea = mx >= 0 && mx <= this.workArea.w && my >= 0 && my <= this.workArea.h;
-        
         menu.querySelectorAll('.context-menu-item').forEach(item => {
             const action = item.dataset.action;
             item.classList.remove('disabled');
             
-            if (action === 'setHomeHere' && !inWorkArea) item.classList.add('disabled');
-            if (['delete', 'duplicate', 'center'].includes(action) && !clickedObj) item.classList.add('disabled');
+            if (['delete', 'duplicate', 'center', 'rotateCW', 'rotateCCW', 'flipH', 'flipV'].includes(action) && !clickedObj) item.classList.add('disabled');
             if (action === 'vectorize' && (!clickedObj || !['image', 'text'].includes(clickedObj.type))) item.classList.add('disabled');
             if (action === 'rasterGcode' && (!clickedObj || !['image', 'text'].includes(clickedObj.type))) item.classList.add('disabled');
-            if (action === 'editPaths' && (!clickedObj || clickedObj.type !== 'vector')) item.classList.add('disabled');
+            if (action === 'editPaths' && (!clickedObj || !['vector', 'vectorText'].includes(clickedObj.type))) item.classList.add('disabled');
             if (['goHome', 'frame'].includes(action) && !this.connected) item.classList.add('disabled');
         });
         
@@ -967,11 +1839,14 @@ class LaserCAM {
         this.hideContextMenu();
         
         switch(action) {
-            case 'setHomeHere': this.setHomeAt(this.contextMenuPos.x, this.contextMenuPos.y); break;
             case 'select': if (this.contextMenuTarget) this.selectObj(this.contextMenuTarget.id); break;
             case 'selectAll': this.selectAll(); break;
             case 'duplicate': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.duplicateSelected(); } break;
             case 'delete': if (this.contextMenuTarget) this.deleteObj(this.contextMenuTarget.id); break;
+            case 'rotateCW': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.rotateSelected(90); } break;
+            case 'rotateCCW': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.rotateSelected(-90); } break;
+            case 'flipH': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.flipSelected('h'); } break;
+            case 'flipV': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.flipSelected('v'); } break;
             case 'vectorize': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.vectorize(); } break;
             case 'rasterGcode': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.showGCode('raster'); } break;
             case 'editPaths': if (this.contextMenuTarget) { this.selectObj(this.contextMenuTarget.id); this.enterEditMode(); } break;
@@ -983,29 +1858,50 @@ class LaserCAM {
         }
     }
 
-    setHomeAt(x, y) {
-        x = Math.max(0, Math.min(this.workArea.w, x));
-        y = Math.max(0, Math.min(this.workArea.h, y));
-        this.homePosition = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
-        document.getElementById('homeX').value = this.homePosition.x;
-        document.getElementById('homeY').value = this.homePosition.y;
-        localStorage.setItem('laserHome', JSON.stringify(this.homePosition));
-        this.log(t('msg_home_set') + `: X${this.homePosition.x} Y${this.homePosition.y}`);
-        this.render();
-    }
-
     centerObject(obj) {
-        obj.x = (this.workArea.w - obj.w) / 2;
-        obj.y = (this.workArea.h - obj.h) / 2;
+        // ⭐ Centra oggetto a 0,0
+        obj.x = -obj.w / 2;
+        obj.y = -obj.h / 2;
         this.updatePropsDisplay();
         this.render();
-        this.log(t('msg_centered'));
+        this.log('🎯 Centered at (0,0)');
     }
 
-    // ========== PATH EDITING ==========
+    // ========== TRASFORMAZIONI ==========
+    
+    rotateSelected(degrees) {
+        if (!this.selected) return;
+        this.selected.rotation = (this.selected.rotation + degrees + 360) % 360;
+        document.getElementById('propRot').value = this.selected.rotation;
+        document.getElementById('rotVal').textContent = this.selected.rotation;
+        this.render();
+        this.log(`↻ Rotated ${this.selected.rotation}°`);
+    }
+
+    setRotation(degrees) {
+        if (!this.selected) return;
+        this.selected.rotation = degrees;
+        document.getElementById('propRot').value = degrees;
+        document.getElementById('rotVal').textContent = degrees;
+        this.render();
+    }
+
+    flipSelected(axis) {
+        if (!this.selected) return;
+        if (axis === 'h') {
+            this.selected.flipH = !this.selected.flipH;
+            this.log('⇄ Flipped horizontally');
+        } else {
+            this.selected.flipV = !this.selected.flipV;
+            this.log('⇅ Flipped vertically');
+        }
+        this.render();
+    }
+        // ========== PATH EDITING ==========
+    
     enterEditMode() {
-        if (!this.selected || this.selected.type !== 'vector') {
-            this.log(t('msg_select_vector'), 'err');
+        if (!this.selected || !['vector', 'vectorText'].includes(this.selected.type)) {
+            this.log('⚠️ Select a vector object first', 'err');
             return;
         }
         this.editMode = true;
@@ -1056,7 +1952,7 @@ class LaserCAM {
         this.editingObject.selectedPathIndex = -1;
         this.updatePathList();
         this.render();
-        this.log(t('msg_path_deleted').replace('{n}', i + 1));
+        this.log(`🗑️ Path #${i + 1} deleted`);
     }
 
     deleteSelectedPath() {
@@ -1073,10 +1969,19 @@ class LaserCAM {
         this.editingObject.selectedPathIndex = -1;
         this.updatePathList();
         this.render();
-        this.log(t('msg_small_paths_deleted').replace('{n}', removed));
+        this.log(`🗑️ Removed ${removed} small paths`);
+    }
+
+    pathLength(path) {
+        let len = 0;
+        for (let i = 1; i < path.length; i++) {
+            len += Math.sqrt((path[i].x - path[i-1].x)**2 + (path[i].y - path[i-1].y)**2);
+        }
+        return len;
     }
 
     // ========== MOUSE EVENTS ==========
+    
     onMouseDown(e) {
         if (e.button === 2) return;
         
@@ -1084,6 +1989,8 @@ class LaserCAM {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         const scale = this.ppm * this.zoom;
+        
+        // ⭐ Coordinate relative al centro
         const mx = (mouseX - this.pan.x) / scale;
         const my = (mouseY - this.pan.y) / scale;
 
@@ -1202,13 +2109,14 @@ class LaserCAM {
     }
 
     // ========== OBJECT MANAGEMENT ==========
+    
     updateObjList() {
         document.getElementById('objList').innerHTML = this.objects.map(obj => `
             <div class="obj-item ${obj.selected ? 'sel' : ''}" onclick="app.selectObj('${obj.id}')">
                 <div>
-                    <span>${obj.type === 'image' ? '🖼️' : obj.type === 'text' ? '📝' : '✏️'}</span>
+                    <span>${obj.type === 'image' ? '🖼️' : obj.type === 'text' ? '📝' : obj.type === 'vectorText' ? '🔤' : '✏️'}</span>
                     ${obj.name.substring(0, 12)}
-                    <div style="font-size:9px; color:#6c7a89">${obj.w.toFixed(0)}×${obj.h.toFixed(0)}mm</div>
+                    <div style="font-size:9px; color:#6c7a89">${obj.w.toFixed(0)}×${obj.h.toFixed(0)}mm ${obj.rotation ? obj.rotation + '°' : ''}</div>
                 </div>
                 <button class="obj-del" onclick="event.stopPropagation(); app.deleteObj('${obj.id}')">×</button>
             </div>
@@ -1235,7 +2143,7 @@ class LaserCAM {
         if (this.editMode) this.exitEditMode();
         this.render();
         this.updateObjList();
-        this.log(t('msg_object_deleted'));
+        this.log('🗑️ Object deleted');
     }
 
     updateProps() {
@@ -1245,8 +2153,10 @@ class LaserCAM {
         document.getElementById('propPwr').value = this.selected.power;
         document.getElementById('propSpd').value = this.selected.speed;
         document.getElementById('propPass').value = this.selected.passes;
+        document.getElementById('propRot').value = this.selected.rotation;
         document.getElementById('pwrVal').textContent = this.selected.power;
         document.getElementById('spdVal').textContent = this.selected.speed;
+        document.getElementById('rotVal').textContent = this.selected.rotation;
         
         const isImage = ['image', 'text'].includes(this.selected.type) && this.selected.image;
         document.getElementById('vecSection').style.display = isImage ? 'block' : 'none';
@@ -1282,13 +2192,13 @@ class LaserCAM {
         this.updateProps();
         this.render();
         this.updateObjList();
-        this.log(t('msg_duplicated'));
+        this.log('📋 Duplicated');
     }
     
     selectAll() { this.objects.forEach(o => o.selected = true); this.render(); this.updateObjList(); }
     
     clearAll() {
-        if (!confirm(t('confirm_delete_all'))) return;
+        if (!confirm('Delete all objects?')) return;
         this.objects = [];
         this.selected = null;
         if (this.editMode) this.exitEditMode();
@@ -1300,12 +2210,190 @@ class LaserCAM {
     }
     
     zoomFit() { 
-        this.zoom = 1; 
-        this.pan = { x: RULER_SIZE + 10, y: RULER_SIZE + 10 }; 
+        this.zoom = 1;
+        this.pan = {
+            x: (this.canvas.width + RULER_SIZE) / 2,
+            y: (this.canvas.height + RULER_SIZE) / 2
+        };
         this.render(); 
     }
 
-    // ========== FILE LOADING ==========
+    // ========== SIMULATION ==========
+    
+    startSimulation() {
+        const simPoints = [];
+        let hasVector = false, hasRaster = false;
+        
+        const mirrorX = document.getElementById('mirrorX').checked;
+        const mirrorY = document.getElementById('mirrorY').checked;
+        
+        this.objects.forEach(obj => {
+            if (['vector', 'vectorText'].includes(obj.type) && obj.paths.length) {
+                hasVector = true;
+                const transformedPaths = obj.getTransformedPaths();
+                
+                for (let pass = 0; pass < obj.passes; pass++) {
+                    transformedPaths.forEach(path => {
+                        if (path.length < 2) return;
+                        
+                        let x = obj.x + path[0].x * obj.w;
+                        let y = obj.y + path[0].y * obj.h;
+                        if (mirrorX) x = -x;
+                        if (mirrorY) y = -y;
+                        
+                        simPoints.push({ x, y, laserOn: false });
+                        
+                        for (let i = 1; i < path.length; i++) {
+                            let px = obj.x + path[i].x * obj.w;
+                            let py = obj.y + path[i].y * obj.h;
+                            if (mirrorX) px = -px;
+                            if (mirrorY) py = -py;
+                            simPoints.push({ x: px, y: py, laserOn: true });
+                        }
+                    });
+                }
+            }
+        });
+        
+        this.objects.forEach(obj => {
+            if (['image', 'text'].includes(obj.type) && obj.image) {
+                hasRaster = true;
+                const res = this.rasterRes;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.ceil(obj.w * res);
+                canvas.height = Math.ceil(obj.h * res);
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(obj.rotation * Math.PI / 180);
+                ctx.scale(obj.flipH ? -1 : 1, obj.flipV ? -1 : 1);
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+                ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imgData.data;
+                const lineSpacing = 1 / res;
+
+                const simStep = Math.max(1, Math.floor(canvas.height / 100));
+                
+                for (let row = 0; row < canvas.height; row += simStep) {
+                    let y = obj.y + row * lineSpacing;
+                    if (mirrorY) y = -y;
+                    
+                    const reverse = this.rasterBidir && (row / simStep) % 2 === 1;
+                    let inBlack = false;
+                    
+                    const start = reverse ? canvas.width - 1 : 0;
+                    const end = reverse ? -1 : canvas.width;
+                    const step = reverse ? -1 : 1;
+
+                    for (let col = start; col !== end; col += step) {
+                        const idx = (row * canvas.width + col) * 4;
+                        const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
+                        const black = gray < 128;
+                        
+                        if (black && !inBlack) {
+                            inBlack = true;
+                            let x = obj.x + col * lineSpacing;
+                            if (mirrorX) x = -x;
+                            simPoints.push({ x, y, laserOn: false });
+                        } else if (!black && inBlack) {
+                            let x = obj.x + (col - step) * lineSpacing;
+                            if (mirrorX) x = -x;
+                            simPoints.push({ x, y, laserOn: true });
+                            inBlack = false;
+                        }
+                    }
+                    if (inBlack) {
+                        let x = obj.x + (reverse ? 0 : canvas.width - 1) * lineSpacing;
+                        if (mirrorX) x = -x;
+                        simPoints.push({ x, y, laserOn: true });
+                    }
+                }
+            }
+        });
+        
+        if (!simPoints.length) { this.log('⚠️ Nothing to simulate', 'err'); return; }
+        
+        this.simMode = hasVector && !hasRaster ? 'Vector' : !hasVector && hasRaster ? 'Raster' : 'Mixed';
+        document.getElementById('simMode').textContent = this.simMode;
+        
+        this.simData = { points: simPoints, currentPoint: simPoints[0], laserOn: false, progress: 0 };
+        this.simCurrentIndex = 0;
+        this.simulating = true;
+        this.simPaused = false;
+        this.simStartTime = Date.now();
+        
+        document.getElementById('simOverlay').classList.add('show');
+        document.getElementById('btnSimPause').textContent = '⏸';
+        this.log('🎬 Simulation started');
+        this.animateSimulation();
+    }
+
+    animateSimulation() {
+        if (!this.simulating) return;
+        if (this.simPaused) { 
+            this.simAnimationId = requestAnimationFrame(() => this.animateSimulation()); 
+            return; 
+        }
+        
+        const pts = this.simData.points;
+        if (this.simCurrentIndex >= pts.length - 1) {
+            this.simulating = false;
+            document.getElementById('simOverlay').classList.remove('show');
+            this.log('✅ Simulation complete');
+            this.render();
+            return;
+        }
+        
+        const idx = Math.floor(this.simCurrentIndex);
+        const t = this.simCurrentIndex - idx;
+        const p1 = pts[idx], p2 = pts[Math.min(idx + 1, pts.length - 1)];
+        
+        this.simData.currentPoint = { 
+            x: p1.x + (p2.x - p1.x) * t, 
+            y: p1.y + (p2.y - p1.y) * t 
+        };
+        this.simData.laserOn = p2.laserOn;
+        this.simData.progress = (this.simCurrentIndex / (pts.length - 1)) * 100;
+        
+        document.getElementById('simPos').textContent = `${this.simData.currentPoint.x.toFixed(1)}, ${this.simData.currentPoint.y.toFixed(1)}`;
+        document.getElementById('simProgress').textContent = `${this.simData.progress.toFixed(0)}%`;
+        document.getElementById('simProgressBar').style.width = `${this.simData.progress}%`;
+        document.getElementById('simTime').textContent = this.formatTime((Date.now() - this.simStartTime) / 1000);
+        
+        this.simCurrentIndex += 0.2 * this.simSpeed;
+        this.render();
+        this.simAnimationId = requestAnimationFrame(() => this.animateSimulation());
+    }
+
+    stopSimulation() {
+        this.simulating = false;
+        if (this.simAnimationId) cancelAnimationFrame(this.simAnimationId);
+        document.getElementById('simOverlay').classList.remove('show');
+        this.simData = null;
+        this.render();
+        this.log('⏹️ Simulation stopped');
+    }
+
+    toggleSimPause() {
+        if (!this.simulating) return;
+        this.simPaused = !this.simPaused;
+        document.getElementById('btnSimPause').textContent = this.simPaused ? '▶' : '⏸';
+    }
+
+    formatTime(sec) { 
+        return `${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`; 
+    }
+
+    // ========== FILE LOADING - CENTRATO ==========
+    
     loadFile(file) {
         if (!file) return;
         if (file.type.startsWith('image/')) {
@@ -1313,12 +2401,18 @@ class LaserCAM {
             reader.onload = e => {
                 const img = new Image();
                 img.onload = () => {
-                    const maxSize = Math.min(this.workArea.w, this.workArea.h) * 0.5;
+                    const maxSize = Math.min(this.workArea.w, this.workArea.h) * 0.4;
                     let w = img.width / 10, h = img.height / 10;
                     if (w > maxSize || h > maxSize) { const s = maxSize / Math.max(w, h); w *= s; h *= s; }
+                    
+                    // ⭐ Centrato a 0,0
                     const obj = new LaserObject('image', {
-                        name: file.name.replace(/\.[^.]+$/, ''), image: img, w, h,
-                        x: (this.workArea.w - w) / 2, y: (this.workArea.h - h) / 2
+                        name: file.name.replace(/\.[^.]+$/, ''), 
+                        image: img, 
+                        w, 
+                        h,
+                        x: -w / 2,
+                        y: -h / 2
                     });
                     this.objects.push(obj);
                     this.objects.forEach(o => o.selected = false);
@@ -1327,7 +2421,7 @@ class LaserCAM {
                     this.updateProps();
                     this.render();
                     this.updateObjList();
-                    this.log(t('msg_loaded') + ': ' + file.name);
+                    this.log('📁 Loaded: ' + file.name);
                 };
                 img.src = e.target.result;
             };
@@ -1337,20 +2431,91 @@ class LaserCAM {
             reader.onload = e => {
                 const svg = new DOMParser().parseFromString(e.target.result, 'image/svg+xml');
                 const paths = [];
+                
                 svg.querySelectorAll('path').forEach(el => {
                     const d = el.getAttribute('d');
                     if (d) { const pts = this.parseSVGPath(d); if (pts.length > 1) paths.push(pts); }
                 });
+                
+                svg.querySelectorAll('rect').forEach(el => {
+                    const x = parseFloat(el.getAttribute('x')) || 0;
+                    const y = parseFloat(el.getAttribute('y')) || 0;
+                    const w = parseFloat(el.getAttribute('width')) || 0;
+                    const h = parseFloat(el.getAttribute('height')) || 0;
+                    if (w && h) paths.push([{x,y}, {x:x+w,y}, {x:x+w,y:y+h}, {x,y:y+h}, {x,y}]);
+                });
+                
+                svg.querySelectorAll('line').forEach(el => {
+                    const x1 = parseFloat(el.getAttribute('x1')) || 0;
+                    const y1 = parseFloat(el.getAttribute('y1')) || 0;
+                    const x2 = parseFloat(el.getAttribute('x2')) || 0;
+                    const y2 = parseFloat(el.getAttribute('y2')) || 0;
+                    paths.push([{x:x1,y:y1}, {x:x2,y:y2}]);
+                });
+                
+                svg.querySelectorAll('polyline, polygon').forEach(el => {
+                    const points = el.getAttribute('points');
+                    if (points) {
+                        const pts = points.trim().split(/[\s,]+/).map(parseFloat);
+                        const path = [];
+                        for (let i = 0; i < pts.length; i += 2) {
+                            if (!isNaN(pts[i]) && !isNaN(pts[i+1])) path.push({x: pts[i], y: pts[i+1]});
+                        }
+                        if (el.tagName === 'polygon' && path.length > 0) path.push({x: path[0].x, y: path[0].y});
+                        if (path.length > 1) paths.push(path);
+                    }
+                });
+                
+                svg.querySelectorAll('circle').forEach(el => {
+                    const cx = parseFloat(el.getAttribute('cx')) || 0;
+                    const cy = parseFloat(el.getAttribute('cy')) || 0;
+                    const r = parseFloat(el.getAttribute('r')) || 0;
+                    if (r > 0) {
+                        const path = [];
+                        for (let a = 0; a <= 360; a += 10) {
+                            const rad = a * Math.PI / 180;
+                            path.push({x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad)});
+                        }
+                        paths.push(path);
+                    }
+                });
+                
+                svg.querySelectorAll('ellipse').forEach(el => {
+                    const cx = parseFloat(el.getAttribute('cx')) || 0;
+                    const cy = parseFloat(el.getAttribute('cy')) || 0;
+                    const rx = parseFloat(el.getAttribute('rx')) || 0;
+                    const ry = parseFloat(el.getAttribute('ry')) || 0;
+                    if (rx > 0 && ry > 0) {
+                        const path = [];
+                        for (let a = 0; a <= 360; a += 10) {
+                            const rad = a * Math.PI / 180;
+                            path.push({x: cx + rx * Math.cos(rad), y: cy + ry * Math.sin(rad)});
+                        }
+                        paths.push(path);
+                    }
+                });
+                
                 if (paths.length) {
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                     paths.forEach(p => p.forEach(pt => { minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y); maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y); }));
                     const w = maxX - minX || 1, h = maxY - minY || 1;
                     const norm = paths.map(p => p.map(pt => ({ x: (pt.x - minX) / w, y: (pt.y - minY) / h })));
-                    const obj = new LaserObject('vector', { name: file.name.replace(/\.[^.]+$/, ''), paths: norm, w: w/10, h: h/10, x: 50, y: 50 });
+                    
+                    // ⭐ Centrato a 0,0
+                    const obj = new LaserObject('vector', { 
+                        name: file.name.replace(/\.[^.]+$/, ''), 
+                        paths: norm, 
+                        w: w/10, 
+                        h: h/10, 
+                        x: -(w/10) / 2, 
+                        y: -(h/10) / 2 
+                    });
                     this.objects.push(obj);
                     obj.selected = true; this.selected = obj;
                     this.updateProps(); this.render(); this.updateObjList();
-                    this.log(t('msg_loaded') + ': SVG');
+                    this.log(`📁 Loaded SVG (${paths.length} paths)`);
+                } else {
+                    this.log('⚠️ No paths found in SVG', 'err');
                 }
             };
             reader.readAsText(file);
@@ -1359,23 +2524,86 @@ class LaserCAM {
 
     parseSVGPath(d) {
         const pts = [];
-        const cmds = d.match(/[MLHVZmlhvz][^MLHVZmlhvz]*/gi) || [];
+        const cmds = d.match(/[MLHVCSQTAZmlhvcsqtaz][^MLHVCSQTAZmlhvcsqtaz]*/gi) || [];
         let cx = 0, cy = 0, sx = 0, sy = 0;
+        
         cmds.forEach(cmd => {
-            const t = cmd[0], args = cmd.slice(1).trim().split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
-            if (t === 'M') { cx = args[0]; cy = args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy}); }
-            else if (t === 'm') { cx += args[0]; cy += args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy}); }
-            else if (t === 'L') { for (let i = 0; i < args.length; i += 2) { cx = args[i]; cy = args[i+1]; pts.push({x:cx,y:cy}); } }
-            else if (t === 'l') { for (let i = 0; i < args.length; i += 2) { cx += args[i]; cy += args[i+1]; pts.push({x:cx,y:cy}); } }
-            else if (t === 'H') { cx = args[0]; pts.push({x:cx,y:cy}); }
-            else if (t === 'h') { cx += args[0]; pts.push({x:cx,y:cy}); }
-            else if (t === 'V') { cy = args[0]; pts.push({x:cx,y:cy}); }
-            else if (t === 'v') { cy += args[0]; pts.push({x:cx,y:cy}); }
-            else if (t === 'Z' || t === 'z') { pts.push({x:sx,y:sy}); cx = sx; cy = sy; }
+            const type = cmd[0];
+            const args = cmd.slice(1).trim().split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
+            
+            switch(type) {
+                case 'M': cx = args[0]; cy = args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy}); 
+                    for (let i = 2; i < args.length; i += 2) { cx = args[i]; cy = args[i+1]; pts.push({x:cx,y:cy}); }
+                    break;
+                case 'm': cx += args[0]; cy += args[1]; sx = cx; sy = cy; pts.push({x:cx,y:cy});
+                    for (let i = 2; i < args.length; i += 2) { cx += args[i]; cy += args[i+1]; pts.push({x:cx,y:cy}); }
+                    break;
+                case 'L': for (let i = 0; i < args.length; i += 2) { cx = args[i]; cy = args[i+1]; pts.push({x:cx,y:cy}); } break;
+                case 'l': for (let i = 0; i < args.length; i += 2) { cx += args[i]; cy += args[i+1]; pts.push({x:cx,y:cy}); } break;
+                case 'H': cx = args[0]; pts.push({x:cx,y:cy}); break;
+                case 'h': cx += args[0]; pts.push({x:cx,y:cy}); break;
+                case 'V': cy = args[0]; pts.push({x:cx,y:cy}); break;
+                case 'v': cy += args[0]; pts.push({x:cx,y:cy}); break;
+                case 'C':
+                    for (let i = 0; i < args.length; i += 6) {
+                        const x1 = args[i], y1 = args[i+1], x2 = args[i+2], y2 = args[i+3], x = args[i+4], y = args[i+5];
+                        for (let t = 0.1; t <= 1; t += 0.1) {
+                            const px = Math.pow(1-t,3)*cx + 3*Math.pow(1-t,2)*t*x1 + 3*(1-t)*t*t*x2 + Math.pow(t,3)*x;
+                            const py = Math.pow(1-t,3)*cy + 3*Math.pow(1-t,2)*t*y1 + 3*(1-t)*t*t*y2 + Math.pow(t,3)*y;
+                            pts.push({x:px,y:py});
+                        }
+                        cx = x; cy = y;
+                    }
+                    break;
+                case 'c':
+                    for (let i = 0; i < args.length; i += 6) {
+                        const x1 = cx+args[i], y1 = cy+args[i+1], x2 = cx+args[i+2], y2 = cy+args[i+3], x = cx+args[i+4], y = cy+args[i+5];
+                        for (let t = 0.1; t <= 1; t += 0.1) {
+                            const px = Math.pow(1-t,3)*cx + 3*Math.pow(1-t,2)*t*x1 + 3*(1-t)*t*t*x2 + Math.pow(t,3)*x;
+                            const py = Math.pow(1-t,3)*cy + 3*Math.pow(1-t,2)*t*y1 + 3*(1-t)*t*t*y2 + Math.pow(t,3)*y;
+                            pts.push({x:px,y:py});
+                        }
+                        cx = x; cy = y;
+                    }
+                    break;
+                case 'Q':
+                    for (let i = 0; i < args.length; i += 4) {
+                        const x1 = args[i], y1 = args[i+1], x = args[i+2], y = args[i+3];
+                        for (let t = 0.1; t <= 1; t += 0.1) {
+                            const px = Math.pow(1-t,2)*cx + 2*(1-t)*t*x1 + t*t*x;
+                            const py = Math.pow(1-t,2)*cy + 2*(1-t)*t*y1 + t*t*y;
+                            pts.push({x:px,y:py});
+                        }
+                        cx = x; cy = y;
+                    }
+                    break;
+                case 'q':
+                    for (let i = 0; i < args.length; i += 4) {
+                        const x1 = cx+args[i], y1 = cy+args[i+1], x = cx+args[i+2], y = cy+args[i+3];
+                        for (let t = 0.1; t <= 1; t += 0.1) {
+                            const px = Math.pow(1-t,2)*cx + 2*(1-t)*t*x1 + t*t*x;
+                            const py = Math.pow(1-t,2)*cy + 2*(1-t)*t*y1 + t*t*y;
+                            pts.push({x:px,y:py});
+                        }
+                        cx = x; cy = y;
+                    }
+                    break;
+                case 'A': case 'a':
+                    if (args.length >= 7) {
+                        const endX = type === 'A' ? args[5] : cx + args[5];
+                        const endY = type === 'A' ? args[6] : cy + args[6];
+                        pts.push({x:endX, y:endY});
+                        cx = endX; cy = endY;
+                    }
+                    break;
+                case 'Z': case 'z': pts.push({x:sx,y:sy}); cx = sx; cy = sy; break;
+            }
         });
         return pts;
     }
 
+    // ========== TEXT CREATION - CENTRATO ==========
+    
     createText() {
         const text = document.getElementById('textContent').value.trim();
         if (!text) return;
@@ -1393,23 +2621,146 @@ class LaserCAM {
         text.split('\n').forEach((line, i) => ctx.fillText(line, 10, 10 + i * size * 10 * 1.2));
         const img = new Image();
         img.onload = () => {
-            const obj = new LaserObject('text', { name: 'Text_' + text.substring(0,8), image: img, w: maxW, h, x: (this.workArea.w - maxW)/2, y: (this.workArea.h - h)/2 });
+            // ⭐ Centrato a 0,0
+            const obj = new LaserObject('text', { 
+                name: 'Text_' + text.substring(0,8), 
+                image: img, 
+                w: maxW, 
+                h, 
+                x: -maxW/2, 
+                y: -h/2 
+            });
             this.objects.push(obj);
             this.objects.forEach(o => o.selected = false);
             obj.selected = true; this.selected = obj;
             this.updateProps(); this.render(); this.updateObjList();
             closeModal('modalText');
             document.getElementById('textContent').value = '';
-            this.log(t('msg_text_added'));
+            this.log('📝 Text added');
         };
         img.src = canvas.toDataURL();
     }
 
+    // ========== VECTOR TEXT ==========
+    
+    initVectorFonts() {
+        return {
+            'A': [[{x:0,y:1},{x:0.5,y:0},{x:1,y:1}], [{x:0.2,y:0.6},{x:0.8,y:0.6}]],
+            'B': [[{x:0,y:0},{x:0,y:1},{x:0.7,y:1},{x:0.9,y:0.85},{x:0.9,y:0.65},{x:0.7,y:0.5},{x:0,y:0.5}], [{x:0.7,y:0.5},{x:0.9,y:0.35},{x:0.9,y:0.15},{x:0.7,y:0},{x:0,y:0}]],
+            'C': [[{x:1,y:0.2},{x:0.8,y:0},{x:0.2,y:0},{x:0,y:0.2},{x:0,y:0.8},{x:0.2,y:1},{x:0.8,y:1},{x:1,y:0.8}]],
+            'D': [[{x:0,y:0},{x:0,y:1},{x:0.6,y:1},{x:0.9,y:0.8},{x:1,y:0.5},{x:0.9,y:0.2},{x:0.6,y:0},{x:0,y:0}]],
+            'E': [[{x:1,y:0},{x:0,y:0},{x:0,y:1},{x:1,y:1}], [{x:0,y:0.5},{x:0.7,y:0.5}]],
+            'F': [[{x:1,y:0},{x:0,y:0},{x:0,y:1}], [{x:0,y:0.5},{x:0.7,y:0.5}]],
+            'G': [[{x:1,y:0.2},{x:0.8,y:0},{x:0.2,y:0},{x:0,y:0.2},{x:0,y:0.8},{x:0.2,y:1},{x:0.8,y:1},{x:1,y:0.8},{x:1,y:0.5},{x:0.5,y:0.5}]],
+            'H': [[{x:0,y:0},{x:0,y:1}], [{x:1,y:0},{x:1,y:1}], [{x:0,y:0.5},{x:1,y:0.5}]],
+            'I': [[{x:0.5,y:0},{x:0.5,y:1}], [{x:0.2,y:0},{x:0.8,y:0}], [{x:0.2,y:1},{x:0.8,y:1}]],
+            'J': [[{x:0.2,y:0},{x:0.8,y:0}], [{x:0.5,y:0},{x:0.5,y:0.8},{x:0.3,y:1},{x:0.1,y:0.9}]],
+            'K': [[{x:0,y:0},{x:0,y:1}], [{x:1,y:0},{x:0,y:0.5},{x:1,y:1}]],
+            'L': [[{x:0,y:0},{x:0,y:1},{x:1,y:1}]],
+            'M': [[{x:0,y:1},{x:0,y:0},{x:0.5,y:0.4},{x:1,y:0},{x:1,y:1}]],
+            'N': [[{x:0,y:1},{x:0,y:0},{x:1,y:1},{x:1,y:0}]],
+            'O': [[{x:0.5,y:0},{x:0.15,y:0.15},{x:0,y:0.5},{x:0.15,y:0.85},{x:0.5,y:1},{x:0.85,y:0.85},{x:1,y:0.5},{x:0.85,y:0.15},{x:0.5,y:0}]],
+            'P': [[{x:0,y:1},{x:0,y:0},{x:0.7,y:0},{x:1,y:0.15},{x:1,y:0.35},{x:0.7,y:0.5},{x:0,y:0.5}]],
+            'Q': [[{x:0.5,y:0},{x:0.15,y:0.15},{x:0,y:0.5},{x:0.15,y:0.85},{x:0.5,y:1},{x:0.85,y:0.85},{x:1,y:0.5},{x:0.85,y:0.15},{x:0.5,y:0}], [{x:0.6,y:0.7},{x:1,y:1.1}]],
+            'R': [[{x:0,y:1},{x:0,y:0},{x:0.7,y:0},{x:1,y:0.15},{x:1,y:0.35},{x:0.7,y:0.5},{x:0,y:0.5}], [{x:0.5,y:0.5},{x:1,y:1}]],
+            'S': [[{x:1,y:0.15},{x:0.8,y:0},{x:0.2,y:0},{x:0,y:0.15},{x:0,y:0.35},{x:0.2,y:0.5},{x:0.8,y:0.5},{x:1,y:0.65},{x:1,y:0.85},{x:0.8,y:1},{x:0.2,y:1},{x:0,y:0.85}]],
+            'T': [[{x:0,y:0},{x:1,y:0}], [{x:0.5,y:0},{x:0.5,y:1}]],
+            'U': [[{x:0,y:0},{x:0,y:0.8},{x:0.2,y:1},{x:0.8,y:1},{x:1,y:0.8},{x:1,y:0}]],
+            'V': [[{x:0,y:0},{x:0.5,y:1},{x:1,y:0}]],
+            'W': [[{x:0,y:0},{x:0.25,y:1},{x:0.5,y:0.5},{x:0.75,y:1},{x:1,y:0}]],
+            'X': [[{x:0,y:0},{x:1,y:1}], [{x:1,y:0},{x:0,y:1}]],
+            'Y': [[{x:0,y:0},{x:0.5,y:0.5},{x:1,y:0}], [{x:0.5,y:0.5},{x:0.5,y:1}]],
+            'Z': [[{x:0,y:0},{x:1,y:0},{x:0,y:1},{x:1,y:1}]],
+            '0': [[{x:0.5,y:0},{x:0.15,y:0.15},{x:0,y:0.5},{x:0.15,y:0.85},{x:0.5,y:1},{x:0.85,y:0.85},{x:1,y:0.5},{x:0.85,y:0.15},{x:0.5,y:0}], [{x:0.2,y:0.8},{x:0.8,y:0.2}]],
+            '1': [[{x:0.3,y:0.2},{x:0.5,y:0},{x:0.5,y:1}], [{x:0.2,y:1},{x:0.8,y:1}]],
+            '2': [[{x:0,y:0.2},{x:0.2,y:0},{x:0.8,y:0},{x:1,y:0.2},{x:1,y:0.4},{x:0,y:1},{x:1,y:1}]],
+            '3': [[{x:0,y:0.15},{x:0.2,y:0},{x:0.8,y:0},{x:1,y:0.15},{x:1,y:0.35},{x:0.8,y:0.5},{x:0.5,y:0.5}], [{x:0.8,y:0.5},{x:1,y:0.65},{x:1,y:0.85},{x:0.8,y:1},{x:0.2,y:1},{x:0,y:0.85}]],
+            '4': [[{x:0.7,y:1},{x:0.7,y:0},{x:0,y:0.7},{x:1,y:0.7}]],
+            '5': [[{x:1,y:0},{x:0,y:0},{x:0,y:0.4},{x:0.7,y:0.4},{x:1,y:0.55},{x:1,y:0.85},{x:0.8,y:1},{x:0.2,y:1},{x:0,y:0.85}]],
+            '6': [[{x:0.8,y:0},{x:0.3,y:0},{x:0,y:0.3},{x:0,y:0.85},{x:0.2,y:1},{x:0.8,y:1},{x:1,y:0.85},{x:1,y:0.65},{x:0.8,y:0.5},{x:0.2,y:0.5},{x:0,y:0.65}]],
+            '7': [[{x:0,y:0},{x:1,y:0},{x:0.3,y:1}]],
+            '8': [[{x:0.5,y:0},{x:0.2,y:0},{x:0,y:0.15},{x:0,y:0.35},{x:0.2,y:0.5},{x:0.8,y:0.5},{x:1,y:0.35},{x:1,y:0.15},{x:0.8,y:0},{x:0.5,y:0}], [{x:0.2,y:0.5},{x:0,y:0.65},{x:0,y:0.85},{x:0.2,y:1},{x:0.8,y:1},{x:1,y:0.85},{x:1,y:0.65},{x:0.8,y:0.5}]],
+            '9': [[{x:0.2,y:1},{x:0.7,y:1},{x:1,y:0.7},{x:1,y:0.15},{x:0.8,y:0},{x:0.2,y:0},{x:0,y:0.15},{x:0,y:0.35},{x:0.2,y:0.5},{x:0.8,y:0.5},{x:1,y:0.35}]],
+            ' ': [],
+            '.': [[{x:0.4,y:0.9},{x:0.6,y:0.9},{x:0.6,y:1},{x:0.4,y:1},{x:0.4,y:0.9}]],
+            ',': [[{x:0.5,y:0.8},{x:0.5,y:1},{x:0.3,y:1.15}]],
+            '-': [[{x:0.2,y:0.5},{x:0.8,y:0.5}]],
+            '+': [[{x:0.5,y:0.2},{x:0.5,y:0.8}], [{x:0.2,y:0.5},{x:0.8,y:0.5}]],
+            '!': [[{x:0.5,y:0},{x:0.5,y:0.7}], [{x:0.4,y:0.9},{x:0.6,y:0.9},{x:0.6,y:1},{x:0.4,y:1},{x:0.4,y:0.9}]],
+            '?': [[{x:0.1,y:0.2},{x:0.3,y:0},{x:0.7,y:0},{x:0.9,y:0.2},{x:0.9,y:0.4},{x:0.5,y:0.6},{x:0.5,y:0.75}], [{x:0.4,y:0.9},{x:0.6,y:0.9},{x:0.6,y:1},{x:0.4,y:1},{x:0.4,y:0.9}]]
+        };
+    }
+
+    createVectorText() {
+        const text = document.getElementById('vectorTextContent').value.trim().toUpperCase();
+        if (!text) return;
+        
+        const fontSize = +document.getElementById('vectorTextSize').value;
+        const bold = document.getElementById('vectorTextBold').checked;
+        
+        const paths = [];
+        const charWidth = 0.7;
+        const charSpacing = 0.15;
+        let cursorX = 0;
+        
+        for (const char of text) {
+            const charPaths = this.vectorFonts[char] || this.vectorFonts['?'];
+            if (charPaths) {
+                charPaths.forEach(path => {
+                    const translatedPath = path.map(p => ({
+                        x: (p.x * charWidth + cursorX) / (text.length * (charWidth + charSpacing)),
+                        y: p.y
+                    }));
+                    paths.push(translatedPath);
+                    
+                    if (bold) {
+                        const boldPath = path.map(p => ({
+                            x: (p.x * charWidth + cursorX + 0.03) / (text.length * (charWidth + charSpacing)),
+                            y: p.y + 0.02
+                        }));
+                        paths.push(boldPath);
+                    }
+                });
+            }
+            cursorX += charWidth + charSpacing;
+        }
+        
+        if (paths.length === 0) {
+            this.log('⚠️ No characters to create', 'err');
+            return;
+        }
+        
+        const totalWidth = fontSize * text.length * 0.7;
+        const totalHeight = fontSize * 1.2;
+        
+        // ⭐ Centrato a 0,0
+        const obj = new LaserObject('vectorText', {
+            name: 'VecTxt_' + text.substring(0, 6),
+            paths: paths,
+            w: totalWidth,
+            h: totalHeight,
+            x: -totalWidth / 2,
+            y: -totalHeight / 2
+        });
+        
+        this.objects.push(obj);
+        this.objects.forEach(o => o.selected = false);
+        obj.selected = true;
+        this.selected = obj;
+        this.updateProps();
+        this.render();
+        this.updateObjList();
+        closeModal('modalVectorText');
+        document.getElementById('vectorTextContent').value = '';
+        this.log('🔤 Vector text added: ' + text);
+    }
+
     // ========== VECTORIZATION ==========
+    
     async vectorize() {
-        if (!this.selected?.image) { this.log(t('msg_select_image'), 'err'); return; }
+        if (!this.selected?.image) { this.log('⚠️ Select an image first', 'err'); return; }
         document.getElementById('loading').classList.add('show');
-        document.getElementById('loadingText').textContent = t('msg_vectorizing');
+        document.getElementById('loadingText').textContent = 'Vectorizing...';
         await this.delay(50);
         try {
             const img = this.selected.image;
@@ -1461,508 +2812,157 @@ class LaserCAM {
             
             paths = paths.filter(p => this.pathLength(p) > 10);
             
-            if (!paths.length) { this.log(t('msg_no_contours'), 'err'); document.getElementById('loading').classList.remove('show'); return; }
+            if (!paths.length) { this.log('⚠️ No contours found', 'err'); document.getElementById('loading').classList.remove('show'); return; }
             
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             paths.forEach(p => p.forEach(pt => { minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y); maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y); }));
             const w = maxX - minX || 1, h = maxY - minY || 1;
             const norm = paths.map(p => p.map(pt => ({ x: (pt.x - minX) / w, y: (pt.y - minY) / h })));
             
-            const vecObj = new LaserObject('vector', { name: this.selected.name + '_vec', paths: norm, x: this.selected.x, y: this.selected.y, w: this.selected.w, h: this.selected.h, power: this.selected.power, speed: this.selected.speed, passes: this.selected.passes });
+            const vecObj = new LaserObject('vector', { 
+                name: this.selected.name + '_vec', 
+                paths: norm, 
+                x: this.selected.x, 
+                y: this.selected.y, 
+                w: this.selected.w, 
+                h: this.selected.h, 
+                rotation: this.selected.rotation,
+                flipH: this.selected.flipH,
+                flipV: this.selected.flipV,
+                power: this.selected.power, 
+                speed: this.selected.speed, 
+                passes: this.selected.passes 
+            });
             this.objects.push(vecObj);
             this.objects.forEach(o => o.selected = false);
             vecObj.selected = true; this.selected = vecObj;
             this.updateProps(); this.render(); this.updateObjList();
-            this.log(t('msg_vectorized').replace('{n}', paths.length));
-        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
+            this.log(`✅ Vectorized (${paths.length} paths)`);
+        } catch (err) { this.log('❌ Error: ' + err.message, 'err'); }
         document.getElementById('loading').classList.remove('show');
     }
 
-    pathLength(path) {
-        let len = 0;
-        for (let i = 1; i < path.length; i++) {
-            len += Math.sqrt((path[i].x - path[i-1].x)**2 + (path[i].y - path[i-1].y)**2);
-        }
-        return len;
+    // ========== MACHINE SETTINGS ==========
+    
+    loadMachine() { 
+        try { 
+            const saved = JSON.parse(localStorage.getItem('laserMachine'));
+            if (saved) return saved;
+        } catch {} 
+        return { maxX: 300, maxY: 300, mirrorX: false, mirrorY: true }; 
     }
-
-    // ========== G-CODE - VERSIONE COMPATIBILE LONGER LASER ==========
-    generateVectorGCode() {
-        let gcode = ['; LaserCAM v1.0 - Vector', 'G21', 'G90', 'M5', ''], dist = 0;
-        
-        this.objects.forEach(obj => {
-            if (obj.type !== 'vector' || !obj.paths.length) return;
-            const sVal = Math.round(obj.power / 100 * 1000);
-            gcode.push(`; ${obj.name}`);
-            
-            for (let pass = 0; pass < obj.passes; pass++) {
-                obj.paths.forEach(path => {
-                    if (path.length < 2) return;
-                    
-                    // Punto iniziale
-                    let lx = obj.x + path[0].x * obj.w;
-                    let ly = obj.y + path[0].y * obj.h;
-                    
-                    // Movimento rapido al punto di partenza (laser OFF)
-                    gcode.push(`G0 X${lx.toFixed(3)} Y${ly.toFixed(3)}`);
-                    
-                    // MODALITÀ LONGER: M3 attiva laser, poi G1 con S
-                    gcode.push('M3');
-                    gcode.push(`F${obj.speed}`);
-                    
-                    // Percorso di taglio
-                    for (let i = 1; i < path.length; i++) {
-                        const px = obj.x + path[i].x * obj.w;
-                        const py = obj.y + path[i].y * obj.h;
-                        
-                        if (i === 1) {
-                            // Primo punto: imposta potenza
-                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} S${sVal}`);
-                        } else {
-                            // Altri punti: continua con stessa potenza
-                            gcode.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)}`);
-                        }
-                        
-                        dist += Math.sqrt((px - lx) ** 2 + (py - ly) ** 2);
-                        lx = px;
-                        ly = py;
-                    }
-                    
-                    // Spegni laser
-                    gcode.push('M5');
-                });
-            }
-        });
-        
-        gcode.push('', 'M5', `G0 X${this.homePosition.x} Y${this.homePosition.y}`, 'M2');
-        return { code: gcode.join('\n'), lines: gcode.length, dist };
-    }
-
-    generateRasterGCode() {
-        let gcode = ['; LaserCAM v1.0 - Raster', `; Res: ${this.rasterRes} l/mm`, 'G21', 'G90', 'M5', ''], dist = 0;
-        const res = this.rasterRes;
-        
-        this.objects.forEach(obj => {
-            if (!['image', 'text'].includes(obj.type) || !obj.image) return;
-            const sVal = Math.round(obj.power / 100 * 1000);
-            gcode.push(`; ${obj.name}`);
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.ceil(obj.w * res);
-            canvas.height = Math.ceil(obj.h * res);
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const d = imgData.data;
-            const lineSpacing = 1 / res;
-
-            for (let row = 0; row < canvas.height; row++) {
-                const y = obj.y + row * lineSpacing;
-                const reverse = this.rasterBidir && row % 2 === 1;
-                let segments = [], inSeg = false, segStart = 0;
-                
-                const start = reverse ? canvas.width - 1 : 0;
-                const end = reverse ? -1 : canvas.width;
-                const step = reverse ? -1 : 1;
-
-                for (let col = start; col !== end; col += step) {
-                    const idx = (row * canvas.width + col) * 4;
-                    const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
-                    const black = gray < 128;
-                    if (black && !inSeg) { segStart = col; inSeg = true; }
-                    else if (!black && inSeg) { segments.push({ s: segStart, e: col - step }); inSeg = false; }
-                }
-                if (inSeg) segments.push({ s: segStart, e: reverse ? 0 : canvas.width - 1 });
-
-                segments.forEach(seg => {
-                    const x1 = obj.x + Math.min(seg.s, seg.e) * lineSpacing;
-                    const x2 = obj.x + Math.max(seg.s, seg.e) * lineSpacing;
-                    
-                    // MODALITÀ LONGER LASER
-                    gcode.push(`G0 X${x1.toFixed(3)} Y${y.toFixed(3)}`);
-                    gcode.push('M3');
-                    gcode.push(`F${obj.speed}`);
-                    gcode.push(`G1 X${x2.toFixed(3)} S${sVal}`);
-                    gcode.push('M5');
-                    
-                    dist += Math.abs(x2 - x1);
-                });
-            }
-        });
-        
-        gcode.push('', 'M5', `G0 X${this.homePosition.x} Y${this.homePosition.y}`, 'M2');
-        return { code: gcode.join('\n'), lines: gcode.length, dist };
-    }
-
-    showGCode(mode = 'vector') {
-        if (!this.objects.length) { this.log(t('msg_no_objects'), 'err'); return; }
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === mode));
-        
-        const result = mode === 'raster' ? this.generateRasterGCode() : this.generateVectorGCode();
-        document.getElementById('gcodeOutput').value = result.code;
-        document.getElementById('gcodeLines').textContent = result.lines;
-        document.getElementById('gcodeDist').textContent = result.dist.toFixed(0);
-        document.getElementById('gcodeTime').textContent = (result.dist / 1000).toFixed(1);
-        
-        openModal('modalGcode');
-        this.log(t('msg_gcode_generated').replace('{mode}', mode).replace('{n}', result.lines));
-
-        document.getElementById('btnCopyGcode').onclick = () => { navigator.clipboard.writeText(result.code); this.log(t('msg_copied')); };
-        document.getElementById('btnDownloadGcode').onclick = () => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([result.code], { type: 'text/plain' }));
-            a.download = `laser_${mode}_${Date.now()}.gcode`;
-            a.click();
-            this.log(t('msg_downloaded'));
-        };
-        document.getElementById('btnSendGcode').onclick = () => { closeModal('modalGcode'); this.startJobWithCode(result.code); };
-    }
-
-    // ========== (resto del codice identico, continua dalla sezione SIMULATION) ==========
-    startSimulation() {
-        const simPoints = [];
-        let hasVector = false, hasRaster = false;
-        
-        this.objects.forEach(obj => {
-            if (obj.type === 'vector' && obj.paths.length) {
-                hasVector = true;
-                for (let pass = 0; pass < obj.passes; pass++) {
-                    obj.paths.forEach(path => {
-                        if (path.length < 2) return;
-                        simPoints.push({ x: obj.x + path[0].x * obj.w, y: obj.y + path[0].y * obj.h, laserOn: false });
-                        for (let i = 1; i < path.length; i++) {
-                            simPoints.push({ x: obj.x + path[i].x * obj.w, y: obj.y + path[i].y * obj.h, laserOn: true });
-                        }
-                    });
-                }
-            }
-        });
-        
-        this.objects.forEach(obj => {
-            if (['image', 'text'].includes(obj.type) && obj.image) {
-                hasRaster = true;
-                const res = this.rasterRes;
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.ceil(obj.w * res);
-                canvas.height = Math.ceil(obj.h * res);
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(obj.image, 0, 0, canvas.width, canvas.height);
-                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const d = imgData.data;
-                const lineSpacing = 1 / res;
-
-                for (let row = 0; row < canvas.height; row += 2) {
-                    const y = obj.y + row * lineSpacing;
-                    const reverse = this.rasterBidir && row % 2 === 1;
-                    let inBlack = false;
-                    
-                    const start = reverse ? canvas.width - 1 : 0;
-                    const end = reverse ? -1 : canvas.width;
-                    const step = reverse ? -1 : 1;
-
-                    for (let col = start; col !== end; col += step) {
-                        const idx = (row * canvas.width + col) * 4;
-                        const gray = d[idx] * 0.299 + d[idx+1] * 0.587 + d[idx+2] * 0.114;
-                        const black = gray < 128;
-                        
-                        if (black && !inBlack) {
-                            inBlack = true;
-                            simPoints.push({ x: obj.x + col * lineSpacing, y, laserOn: false });
-                        } else if (!black && inBlack) {
-                            simPoints.push({ x: obj.x + (col - step) * lineSpacing, y, laserOn: true });
-                            inBlack = false;
-                        }
-                    }
-                    if (inBlack) {
-                        simPoints.push({ x: obj.x + (reverse ? 0 : canvas.width - 1) * lineSpacing, y, laserOn: true });
-                    }
-                }
-            }
-        });
-        
-        if (!simPoints.length) { this.log(t('msg_nothing_to_simulate'), 'err'); return; }
-        
-        this.simMode = hasVector && !hasRaster ? 'Vector' : !hasVector && hasRaster ? 'Raster' : t('sim_mixed');
-        document.getElementById('simMode').textContent = this.simMode;
-        
-        this.simData = { points: simPoints, currentPoint: simPoints[0], laserOn: false, progress: 0 };
-        this.simCurrentIndex = 0;
-        this.simulating = true;
-        this.simPaused = false;
-        this.simStartTime = Date.now();
-        
-        document.getElementById('simOverlay').classList.add('show');
-        document.getElementById('btnSimPause').textContent = '⏸';
-        this.log(t('msg_simulation_started') + ' ' + this.simMode);
-        this.animateSimulation();
-    }
-
-    animateSimulation() {
-        if (!this.simulating) return;
-        if (this.simPaused) { this.simAnimationId = requestAnimationFrame(() => this.animateSimulation()); return; }
-        
-        const pts = this.simData.points;
-        if (this.simCurrentIndex >= pts.length - 1) {
-            this.simulating = false;
-            document.getElementById('simOverlay').classList.remove('show');
-            this.log(t('msg_simulation_complete'));
-            this.render();
-            return;
-        }
-        
-        const idx = Math.floor(this.simCurrentIndex);
-        const t = this.simCurrentIndex - idx;
-        const p1 = pts[idx], p2 = pts[Math.min(idx + 1, pts.length - 1)];
-        
-        this.simData.currentPoint = { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
-        this.simData.laserOn = p2.laserOn;
-        this.simData.progress = (this.simCurrentIndex / (pts.length - 1)) * 100;
-        
-        document.getElementById('simPos').textContent = `${this.simData.currentPoint.x.toFixed(1)}, ${this.simData.currentPoint.y.toFixed(1)}`;
-        document.getElementById('simProgress').textContent = `${this.simData.progress.toFixed(0)}%`;
-        document.getElementById('simProgressBar').style.width = `${this.simData.progress}%`;
-        document.getElementById('simTime').textContent = this.formatTime((Date.now() - this.simStartTime) / 1000);
-        
-        this.simCurrentIndex += 0.2 * this.simSpeed;
-        this.render();
-        this.simAnimationId = requestAnimationFrame(() => this.animateSimulation());
-    }
-
-    stopSimulation() {
-        this.simulating = false;
-        if (this.simAnimationId) cancelAnimationFrame(this.simAnimationId);
-        document.getElementById('simOverlay').classList.remove('show');
-        this.simData = null;
-        this.render();
-        this.log(t('msg_simulation_stopped'));
-    }
-
-    toggleSimPause() {
-        if (!this.simulating) return;
-        this.simPaused = !this.simPaused;
-        document.getElementById('btnSimPause').textContent = this.simPaused ? '▶' : '⏸';
-    }
-
-    formatTime(sec) { return `${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`; }
-
-    // ========== SERIAL ==========
-    async toggleConnection() {
-        if (this.connected) await this.disconnect();
-        else await this.connect();
-    }
-
-    async connect() {
-        try {
-            if (!('serial' in navigator)) { alert(t('msg_use_chrome')); return; }
-            this.port = await navigator.serial.requestPort();
-            await this.port.open({ baudRate: +document.getElementById('baudRate').value });
-            this.connected = true;
-            document.getElementById('status').classList.add('on');
-            document.getElementById('statusTxt').textContent = t('status_connected');
-            document.getElementById('btnConn').textContent = t('btn_disconnect');
-            this.log(t('msg_connected'));
-            this.startReading();
-            await this.delay(1000);
-            await this.send('$X');
-        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
-    }
-
-    async disconnect() {
-        this.jobRunning = false;
-        await this.send('M5');
-        if (this.reader) { try { await this.reader.cancel(); } catch(e) {} this.reader = null; }
-        if (this.port) { try { await this.port.close(); } catch(e) {} this.port = null; }
-        this.connected = false;
-        document.getElementById('status').classList.remove('on');
-        document.getElementById('statusTxt').textContent = t('status_disconnected');
-        document.getElementById('btnConn').textContent = t('btn_connect');
-        this.log(t('msg_disconnected'));
-    }
-
-    async startReading() {
-        while (this.port?.readable) {
-            try {
-                this.reader = this.port.readable.getReader();
-                let buffer = '';
-                while (true) {
-                    const { value, done } = await this.reader.read();
-                    if (done) break;
-                    buffer += new TextDecoder().decode(value);
-                    const lines = buffer.split('\n'); buffer = lines.pop();
-                    lines.forEach(l => { l = l.trim(); if (l) this.handleResponse(l); });
-                }
-            } catch (err) { if (err.name !== 'CancelledError') this.log(t('msg_error') + ': ' + err.message, 'err'); }
-            finally { this.reader?.releaseLock(); }
-        }
-    }
-
-    handleResponse(line) {
-        this.log('< ' + line, 'recv');
-        const m = line.match(/[MW]Pos:([-\d.]+),([-\d.]+)/);
-        if (m) { this.currentPosition = { x: parseFloat(m[1]), y: parseFloat(m[2]) }; }
-    }
-
-    async send(cmd) {
-        if (!this.connected) return false;
-        try {
-            const w = this.port.writable.getWriter();
-            await w.write(new TextEncoder().encode(cmd + '\n'));
-            w.releaseLock();
-            if (cmd.trim()) this.log('> ' + cmd, 'send');
-            return true;
-        } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); return false; }
-    }
-
-    sendManual() {
-        const input = document.getElementById('consoleInput');
-        if (input.value.trim()) { this.send(input.value.trim()); input.value = ''; }
-    }
-
-    async emergencyStop() {
-        this.log(t('msg_emergency_stop'), 'err');
-        this.jobRunning = false;
-        this.stopSimulation();
-        if (this.port?.writable) {
-            const w = this.port.writable.getWriter();
-            await w.write(new TextEncoder().encode('\x18'));
-            w.releaseLock();
-        }
-        await this.send('M5');
-        await this.send('$X');
-        document.getElementById('btnStart').disabled = false;
-        document.getElementById('progBar').style.width = '0%';
-        document.getElementById('footProg').textContent = '0%';
-    }
-
-    async startJob() { await this.startJobWithCode(this.generateVectorGCode().code); }
-
-    async startJobWithCode(code) {
-        if (!this.connected) { this.log(t('msg_not_connected'), 'err'); return; }
-        this.jobQueue = code.split('\n').filter(l => l.trim() && !l.startsWith(';'));
-        this.jobRunning = true;
-        this.jobPaused = false;
-        document.getElementById('btnStart').disabled = true;
-        this.log(t('msg_starting'));
-
-        for (let i = 0; i < this.jobQueue.length && this.jobRunning; i++) {
-            while (this.jobPaused) await this.delay(100);
-            await this.send(this.jobQueue[i]);
-            await this.delay(15);
-            const p = ((i + 1) / this.jobQueue.length) * 100;
-            document.getElementById('progBar').style.width = p + '%';
-            document.getElementById('footProg').textContent = Math.round(p) + '%';
-        }
-
-        this.jobRunning = false;
-        document.getElementById('btnStart').disabled = false;
-        this.log(t('msg_complete'));
-    }
-
-    togglePause() {
-        if (!this.jobRunning) return;
-        this.jobPaused = !this.jobPaused;
-        this.send(this.jobPaused ? '!' : '~');
-        document.getElementById('btnPause').textContent = this.jobPaused ? t('btn_resume') : t('btn_pause');
-        this.log(this.jobPaused ? t('msg_paused') : t('msg_resumed'));
-    }
-
-    jog(dir) {
-        if (!this.connected) return;
-        if (dir === 'H') { this.goHome(); return; }
-        const cmds = { 'X+': `$J=G91 X${this.jogStep} F3000`, 'X-': `$J=G91 X-${this.jogStep} F3000`, 'Y+': `$J=G91 Y${this.jogStep} F3000`, 'Y-': `$J=G91 Y-${this.jogStep} F3000` };
-        if (cmds[dir]) this.send(cmds[dir]);
-    }
-
-    async frameJob() {
-        if (!this.connected) { this.log(t('msg_not_connected'), 'err'); return; }
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        this.objects.forEach(o => { minX = Math.min(minX, o.x); minY = Math.min(minY, o.y); maxX = Math.max(maxX, o.x + o.w); maxY = Math.max(maxY, o.y + o.h); });
-        if (minX === Infinity) return;
-        this.log(t('msg_framing'));
-        await this.send('M3 S5');
-        await this.send(`G0 X${minX.toFixed(1)} Y${minY.toFixed(1)} F3000`);
-        await this.delay(300);
-        await this.send(`G0 X${maxX.toFixed(1)} Y${minY.toFixed(1)}`);
-        await this.delay(300);
-        await this.send(`G0 X${maxX.toFixed(1)} Y${maxY.toFixed(1)}`);
-        await this.delay(300);
-        await this.send(`G0 X${minX.toFixed(1)} Y${maxY.toFixed(1)}`);
-        await this.delay(300);
-        await this.send(`G0 X${minX.toFixed(1)} Y${minY.toFixed(1)}`);
-        await this.send('M5');
-    }
-
-    // ========== HOME ==========
-    loadHomePosition() { try { return JSON.parse(localStorage.getItem('laserHome')) || { x: 0, y: 0 }; } catch { return { x: 0, y: 0 }; } }
-    applyHomePosition() { document.getElementById('homeX').value = this.homePosition.x; document.getElementById('homeY').value = this.homePosition.y; }
-    saveHomePosition() {
-        this.homePosition = { x: +document.getElementById('homeX').value, y: +document.getElementById('homeY').value };
-        localStorage.setItem('laserHome', JSON.stringify(this.homePosition));
-        this.log(t('msg_home_set') + `: X${this.homePosition.x} Y${this.homePosition.y}`);
-        this.render();
-    }
-    async goHome() { if (this.connected) await this.send(`G0 X${this.homePosition.x} Y${this.homePosition.y} F3000`); }
-
-    // ========== MACHINE & PRESETS ==========
-    loadMachine() { try { return JSON.parse(localStorage.getItem('laserMachine')) || { maxX: 300, maxY: 300 }; } catch { return { maxX: 300, maxY: 300 }; } }
+    
     saveMachine() {
-        this.machine = { maxX: +document.getElementById('machX').value, maxY: +document.getElementById('machY').value };
+        this.machine = { 
+            maxX: +document.getElementById('machX').value, 
+            maxY: +document.getElementById('machY').value,
+            mirrorX: document.getElementById('mirrorX').checked,
+            mirrorY: document.getElementById('mirrorY').checked
+        };
         localStorage.setItem('laserMachine', JSON.stringify(this.machine));
         this.applyMachineProfile();
-        this.log(t('msg_profile_saved'));
+        this.log('💾 Machine profile saved');
     }
+    
     applyMachineProfile() {
         document.getElementById('machX').value = this.machine.maxX;
         document.getElementById('machY').value = this.machine.maxY;
+        document.getElementById('mirrorX').checked = this.machine.mirrorX || false;
+        document.getElementById('mirrorY').checked = this.machine.mirrorY !== undefined ? this.machine.mirrorY : true;
         this.workArea = { w: this.machine.maxX, h: this.machine.maxY };
         this.render();
     }
 
-    loadPresets() { try { return JSON.parse(localStorage.getItem('laserPresets')) || this.defaultPresets(); } catch { return this.defaultPresets(); } }
-    defaultPresets() { return { wood: { name: 'Wood', power: 70, speed: 1500 }, acrylic: { name: 'Acrylic', power: 100, speed: 400 }, paper: { name: 'Paper', power: 25, speed: 3000 } }; }
+    // ========== PRESETS ==========
+    
+    loadPresets() { 
+        try { 
+            return JSON.parse(localStorage.getItem('laserPresets')) || this.defaultPresets(); 
+        } catch { 
+            return this.defaultPresets(); 
+        } 
+    }
+    
+    defaultPresets() { 
+        return { 
+            wood: { name: 'Wood', power: 70, speed: 1500 }, 
+            acrylic: { name: 'Acrylic', power: 100, speed: 400 }, 
+            paper: { name: 'Paper', power: 25, speed: 3000 },
+            leather: { name: 'Leather', power: 50, speed: 800 },
+            cardboard: { name: 'Cardboard', power: 40, speed: 1200 }
+        }; 
+    }
+    
     renderPresets() {
         document.getElementById('presetGrid').innerHTML = Object.entries(this.presets).map(([id, p]) => `
             <div class="preset-item" onclick="app.applyPreset('${id}')">
-                <strong>${p.name}</strong><br><small>${p.power}%/${p.speed}</small>
-                ${!p.builtin ? `<button class="preset-del" onclick="event.stopPropagation(); app.deletePreset('${id}')">×</button>` : ''}
+                <strong>${p.name}</strong><br><small>${p.power}% / ${p.speed}</small>
+                <button class="preset-del" onclick="event.stopPropagation(); app.deletePreset('${id}')">×</button>
             </div>
         `).join('');
     }
+    
     applyPreset(id) {
         const p = this.presets[id];
         if (!p) return;
-        (this.selected ? [this.selected] : this.objects).forEach(o => { o.power = p.power; o.speed = p.speed; });
+        (this.selected ? [this.selected] : this.objects).forEach(o => { 
+            o.power = p.power; 
+            o.speed = p.speed; 
+        });
         if (this.selected) this.updateProps();
-        this.log(t('msg_preset_applied') + ': ' + p.name);
+        this.log('✅ Applied preset: ' + p.name);
     }
+    
     savePreset() {
         const name = document.getElementById('presetName').value.trim();
         if (!name) return;
-        this.presets['c_' + Date.now()] = { name, power: +document.getElementById('presetPwr').value, speed: +document.getElementById('presetSpd').value };
+        this.presets['custom_' + Date.now()] = { 
+            name, 
+            power: +document.getElementById('presetPwr').value, 
+            speed: +document.getElementById('presetSpd').value 
+        };
         localStorage.setItem('laserPresets', JSON.stringify(this.presets));
         this.renderPresets();
         closeModal('modalPreset');
         document.getElementById('presetName').value = '';
-        this.log(t('msg_preset_saved'));
+        this.log('💾 Preset saved');
     }
-    deletePreset(id) { if (this.presets[id]) { delete this.presets[id]; localStorage.setItem('laserPresets', JSON.stringify(this.presets)); this.renderPresets(); } }
+    
+    deletePreset(id) { 
+        if (this.presets[id]) { 
+            delete this.presets[id]; 
+            localStorage.setItem('laserPresets', JSON.stringify(this.presets)); 
+            this.renderPresets(); 
+        } 
+    }
 
-    // ========== PROJECT ==========
+    // ========== PROJECT SAVE/LOAD ==========
+    
     saveProject() {
-        const project = { workArea: this.workArea, homePosition: this.homePosition, objects: this.objects.map(obj => {
-            const d = { ...obj }; delete d.selected; delete d.selectedPathIndex;
-            if (obj.image) { const c = document.createElement('canvas'); c.width = obj.image.width; c.height = obj.image.height; c.getContext('2d').drawImage(obj.image, 0, 0); d.imageData = c.toDataURL(); delete d.image; }
-            return d;
-        }) };
+        const project = { 
+            version: '1.0-relative',
+            workArea: this.workArea, 
+            machine: this.machine,
+            objects: this.objects.map(obj => {
+                const d = { ...obj }; 
+                delete d.selected; 
+                delete d.selectedPathIndex;
+                if (obj.image) { 
+                    const c = document.createElement('canvas'); 
+                    c.width = obj.image.width; 
+                    c.height = obj.image.height; 
+                    c.getContext('2d').drawImage(obj.image, 0, 0); 
+                    d.imageData = c.toDataURL(); 
+                    delete d.image; 
+                }
+                return d;
+            }) 
+        };
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([JSON.stringify(project)], { type: 'application/json' }));
-        a.download = 'project.lcp';
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }));
+        a.download = 'project_relative_' + Date.now() + '.lcp';
         a.click();
-        this.log(t('msg_project_saved'));
+        this.log('💾 Project saved');
     }
 
     loadProject(file) {
@@ -1971,23 +2971,54 @@ class LaserCAM {
         reader.onload = e => {
             try {
                 const proj = JSON.parse(e.target.result);
-                this.objects = []; this.selected = null;
-                if (proj.workArea) { this.workArea = proj.workArea; this.machine = { maxX: proj.workArea.w, maxY: proj.workArea.h }; this.applyMachineProfile(); }
-                if (proj.homePosition) { this.homePosition = proj.homePosition; this.applyHomePosition(); }
+                this.objects = []; 
+                this.selected = null;
+                
+                if (proj.workArea) { 
+                    this.workArea = proj.workArea; 
+                    this.machine = { 
+                        maxX: proj.workArea.w, 
+                        maxY: proj.workArea.h,
+                        mirrorX: proj.machine?.mirrorX || false,
+                        mirrorY: proj.machine?.mirrorY !== undefined ? proj.machine.mirrorY : true
+                    }; 
+                    this.applyMachineProfile(); 
+                }
+                
+                let loadedImages = 0;
+                const totalImages = proj.objects?.filter(d => d.imageData).length || 0;
+                
                 proj.objects?.forEach(data => {
                     const obj = new LaserObject(data.type, data);
                     Object.assign(obj, data);
-                    if (data.imageData) { const img = new Image(); img.onload = () => { obj.image = img; delete obj.imageData; this.render(); }; img.src = data.imageData; }
+                    obj.selected = false;
+                    obj.selectedPathIndex = -1;
+                    
+                    if (data.imageData) { 
+                        const img = new Image(); 
+                        img.onload = () => { 
+                            obj.image = img; 
+                            delete obj.imageData; 
+                            loadedImages++;
+                            if (loadedImages >= totalImages) this.render(); 
+                        }; 
+                        img.src = data.imageData; 
+                    }
                     this.objects.push(obj);
                 });
-                this.render(); this.updateObjList();
-                this.log(t('msg_project_loaded'));
-            } catch (err) { this.log(t('msg_error') + ': ' + err.message, 'err'); }
+                
+                this.render(); 
+                this.updateObjList();
+                this.log(`📁 Project loaded (${proj.objects?.length || 0} objects)`);
+            } catch (err) { 
+                this.log('❌ Error: ' + err.message, 'err'); 
+            }
         };
         reader.readAsText(file);
     }
 
-    // ========== UTILS ==========
+    // ========== UTILITIES ==========
+    
     log(msg, type = 'info') {
         const log = document.getElementById('consoleLog');
         const line = document.createElement('div');
@@ -1996,22 +3027,71 @@ class LaserCAM {
         log.appendChild(line);
         log.scrollTop = log.scrollHeight;
         document.getElementById('footStatus').textContent = msg;
+        
+        while (log.children.length > 500) {
+            log.removeChild(log.firstChild);
+        }
     }
 
-    delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+    delay(ms) { 
+        return new Promise(r => setTimeout(r, ms)); 
+    }
 }
 
-// ========== MODAL ==========
-function openModal(id) { document.getElementById(id).classList.add('show'); }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+// ========== MODAL FUNCTIONS ==========
+function openModal(id) { 
+    document.getElementById(id).classList.add('show'); 
+}
 
-// ========== INIT ==========
+function closeModal(id) { 
+    document.getElementById(id).classList.remove('show'); 
+}
+
+// ========== KEYBOARD SHORTCUTS ==========
+document.addEventListener('keydown', e => {
+    if (!app) return;
+    
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        app.deleteSelected();
+    } else if (e.key === 'Escape') {
+        if (app.editMode) app.exitEditMode();
+        closeModal('modalPreset');
+        closeModal('modalText');
+        closeModal('modalVectorText');
+        closeModal('modalGcode');
+    } else if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'd' || e.key === 'D') {
+            e.preventDefault();
+            app.duplicateSelected();
+        } else if (e.key === 'a' || e.key === 'A') {
+            e.preventDefault();
+            app.selectAll();
+        } else if (e.key === 's' || e.key === 'S') {
+            e.preventDefault();
+            app.saveProject();
+        }
+    } else if (e.key === 'r' || e.key === 'R') {
+        app.rotateSelected(e.shiftKey ? -90 : 90);
+    } else if (e.key === 'h' || e.key === 'H') {
+        app.flipSelected('h');
+    } else if (e.key === 'v' || e.key === 'V') {
+        app.flipSelected('v');
+    }
+});
+
+// ========== INITIALIZATION ==========
 let app;
 window.addEventListener('DOMContentLoaded', () => {
     initLanguageSelector();
     app = new LaserCAM();
     applyTranslations();
-    console.log('✅ LaserCAM Pro v1.0 - Longer Laser Compatible');
+    console.log('✅ LaserCAM Pro v1.0 - FULL RELATIVE MODE');
+    console.log('🎯 Home = Center (0,0) - All coordinates relative');
+    console.log('📋 Shortcuts: Del=delete, R=rotate, H=flipH, V=flipV, Ctrl+D=duplicate, Ctrl+A=selectAll, Ctrl+S=save');
+    console.log('🔧 G-Code: G91 full relative, M3 once, S on each move');
 });
 </script>
 </body>
